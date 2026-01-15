@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from 'react';
 import {
     Plus, PieChart,
     Trash2, Edit2, Save, X, Activity, ChevronDown, ChevronUp, Check, FolderPlus,
-    PiggyBank, TrendingUp, Wallet, Briefcase, Layers, LogOut
+    PiggyBank, TrendingUp, Wallet, Briefcase, Layers, LogOut, Shield
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList, PieChart as RePieChart, Pie, Legend, Tooltip
@@ -12,7 +12,8 @@ import {
 } from '../types';
 
 // Importando as ferramentas compartilhadas
-import { Card, UserDot, HistoryManager, useToast } from './Shared';
+import { Card, UserDot, HistoryManager } from './Shared';
+import { useToast } from './SharedUI';
 // NOTE: I accidentally put useToast in SharedUI.tsx in plan but Shared.tsx in thought. I should check where I wrote SharedUI and align.
 // I wrote to `components/SharedUI.tsx`. I should import from there to be safe.
 // Wait, Card/UserDot are in 'Shared.tsx'. I should probably put Toast there or import from SharedUI.
@@ -40,47 +41,7 @@ import { supabase } from '../supabaseClient'; // Need to ensure supabase is impo
 // However, `supabaseClient` is in parent.
 // I should probably add `supabase` import to Modules.tsx top level.
 
-const ChangePasswordForm = ({ showToast }: { showToast: any }) => {
-    const [password, setPassword] = useState('');
-    const [confirm, setConfirm] = useState('');
-    const [loading, setLoading] = useState(false);
 
-    const handleChange = async () => {
-        if (password.length < 6) { showToast('A senha deve ter pelo menos 6 caracteres.', 'error'); return; }
-        if (password !== confirm) { showToast('As senhas não conferem.', 'error'); return; }
-
-        setLoading(true);
-        const { error } = await supabase.auth.updateUser({ password: password });
-
-        if (error) {
-            showToast('Erro ao atualizar senha: ' + error.message, 'error');
-        } else {
-            showToast('Senha atualizada com sucesso!', 'success');
-            setPassword('');
-            setConfirm('');
-        }
-        setLoading(false);
-    };
-
-    return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-lg">
-            <h3 className="font-bold text-slate-800 mb-4 text-lg">Alterar Senha</h3>
-            <div className="space-y-4">
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase">Nova Senha</label>
-                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 transition" />
-                </div>
-                <div>
-                    <label className="text-xs font-bold text-slate-500 uppercase">Confirmar Nova Senha</label>
-                    <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 transition" />
-                </div>
-                <button onClick={handleChange} disabled={loading} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition shadow-lg disabled:opacity-50">
-                    {loading ? 'Atualizando...' : 'Atualizar Senha'}
-                </button>
-            </div>
-        </div>
-    );
-};
 
 // --- HELPER PARA EDITAR TÍTULO ---
 const EditableGroupTitle = ({ initialName, onRename, readOnly }: { initialName: string, onRename: (n: string) => void, readOnly?: boolean }) => {
@@ -573,6 +534,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 
 // --- SETTINGS VIEW ---
 export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void }> = ({ config, onUpdate, readOnly, onLogout }) => {
+    const { showToast } = useToast();
     const [localConfig, setLocalConfig] = useState<CategoryConfig>(config);
     const [activeTab, setActiveTab] = useState<'expenses' | 'investments' | 'income' | 'security'>('expenses');
 
@@ -591,16 +553,36 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         setLocalConfig(safeConfig);
     }, [config]);
 
-    const handleSave = () => { onUpdate(localConfig); alert("Configurações salvas com sucesso!"); };
+    const handleSave = () => { onUpdate(localConfig); showToast("Configurações salvas com sucesso!", "success"); };
+
+    const renameGroup = (oldName: string, newName: string) => {
+        if (!newName || !newName.trim() || newName === oldName) return;
+        const safeConfig = JSON.parse(JSON.stringify(localConfig));
+        const sectionKey = activeTab === 'expenses' ? 'expense' : activeTab === 'investments' ? 'investment' : 'income';
+
+        if (safeConfig[sectionKey][newName]) {
+            showToast('Já existe um grupo com este nome.', 'error');
+            return;
+        }
+
+        const items = safeConfig[sectionKey][oldName];
+        safeConfig[sectionKey][newName] = items;
+        delete safeConfig[sectionKey][oldName];
+
+        setLocalConfig(safeConfig);
+        onUpdate(safeConfig);
+        showToast('Grupo renomeado!', 'success');
+    };
 
     // --- LÓGICA GENÉRICA PARA GRUPOS E ITENS ---
     // Mapeia a aba ativa para a chave correspondente no config
-    const activeKey = activeTab === 'expenses' ? 'expense' : activeTab === 'investments' ? 'investment' : 'income';
+    // Mapeia a aba ativa para a chave correspondente no config
+    const activeKey = activeTab === 'expenses' ? 'expense' : activeTab === 'investments' ? 'investment' : activeTab === 'income' ? 'income' : null;
 
     const addGroup = () => {
         if (!newGroup.trim()) return;
         const currentGroups = localConfig[activeKey] as Record<string, string[]>;
-        if (currentGroups[newGroup]) { alert('Grupo já existe!'); return; }
+        if (currentGroups[newGroup]) { showToast('Grupo já existe!', 'error'); return; }
 
         setLocalConfig(prev => ({
             ...prev,
@@ -709,80 +691,92 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
                 <button onClick={() => setActiveTab('expenses')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'expenses' ? 'bg-rose-50 text-rose-600 shadow-sm ring-1 ring-rose-200' : 'text-slate-500 hover:bg-slate-50'}`}><Layers size={18} /> Despesas</button>
                 <button onClick={() => setActiveTab('investments')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'investments' ? 'bg-indigo-50 text-indigo-600 shadow-sm ring-1 ring-indigo-200' : 'text-slate-500 hover:bg-slate-50'}`}><Briefcase size={18} /> Investimentos</button>
                 <button onClick={() => setActiveTab('income')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'income' ? 'bg-emerald-50 text-emerald-600 shadow-sm ring-1 ring-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}><Wallet size={18} /> Receitas</button>
-                <button onClick={() => setActiveTab('security')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'security' ? 'bg-slate-100 text-slate-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500 hover:bg-slate-50'}`}>🔒 Segurança</button>
+                <button onClick={() => setActiveTab('security')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'security' ? 'bg-indigo-50 text-indigo-700 shadow-sm ring-1 ring-indigo-300' : 'text-slate-500 hover:bg-slate-50'}`}><Shield size={18} /> Segurança</button>
             </div>
 
             {/* Content Area */}
             <div className="flex-1 overflow-y-auto custom-scroll">
 
                 <div className="space-y-6 animate-fade-in">
-                    {/* Criar Novo Grupo */}
-                    <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 gap-4">
-                        <div className="flex items-center gap-2">
-                            <div className={`p-2 rounded-lg ${themeBg} ${themeText}`}><ThemeIcon size={20} /></div>
-                            <div>
-                                <h3 className="font-bold text-slate-700">
-                                    {activeTab === 'expenses' ? 'Grupos de Despesa' : activeTab === 'investments' ? 'Grupos de Investimento' : 'Grupos de Receita'}
-                                </h3>
-                                <p className="text-xs text-slate-400">Agrupamento para organização</p>
-                            </div>
+                    {activeTab === 'security' ? (
+                        <div className="flex flex-col items-center justify-center py-20 text-slate-400">
+                            <Shield size={48} className="mb-4 text-slate-300" />
+                            <h3 className="text-lg font-bold text-slate-600">Área de Segurança</h3>
+                            <p className="text-sm">Configurações de segurança em breve.</p>
                         </div>
-                        {!readOnly && (
-                            <div className="flex gap-2 w-full md:w-auto">
-                                <input
-                                    value={newGroup}
-                                    onChange={e => setNewGroup(e.target.value)}
-                                    placeholder="Nome do Novo Grupo..."
-                                    className="border border-slate-300 rounded-lg px-3 py-1 text-sm outline-none focus:border-slate-500 flex-1 bg-white text-slate-900"
-                                />
-                                <button onClick={addGroup} className={`text-sm font-bold text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm ${themeBtn}`}><FolderPlus size={16} /> Criar</button>
-                            </div>
-                        )}
-                    </div>
-
-                    {/* Lista de Grupos */}
-                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
-                        {Object.entries((localConfig[activeKey] as Record<string, string[]>) || {}).map(([group, items]) => (
-                            <Card key={group} className={`relative group/card hover:${themeBorder} transition-colors border-transparent`}>
-                                <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
-                                    <h4 className="font-bold text-slate-800 text-lg truncate pr-2" title={group}>{group}</h4>
-                                    {!readOnly && (
-                                        <button
-                                            type="button"
-                                            onClick={(e) => deleteGroup(group, e)}
-                                            className="p-1.5 text-slate-300 hover:text-rose-500 rounded transition relative z-50 cursor-pointer"
-                                            title="Excluir Grupo"
-                                        >
-                                            <Trash2 size={18} className="pointer-events-none" />
-                                        </button>
-                                    )}
+                    ) : (
+                        <div className="space-y-6">
+                            {/* Criar Novo Grupo */}
+                            <div className="flex flex-col md:flex-row md:items-center justify-between bg-white p-4 rounded-xl border border-slate-200 gap-4">
+                                <div className="flex items-center gap-2">
+                                    <div className={`p-2 rounded-lg ${themeBg} ${themeText}`}><ThemeIcon size={20} /></div>
+                                    <div>
+                                        <h3 className="font-bold text-slate-700">
+                                            {activeTab === 'expenses' ? 'Grupos de Despesa' : activeTab === 'investments' ? 'Grupos de Investimento' : 'Grupos de Receita'}
+                                        </h3>
+                                        <p className="text-xs text-slate-400">Agrupamento para organização</p>
+                                    </div>
                                 </div>
-
-                                <div className="flex flex-wrap gap-2 mb-4">
-                                    {(items || []).map((item: string) => (
-                                        <span key={item} className={`bg-slate-50 text-slate-600 border border-slate-200 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 group/item hover:${themeBg} hover:${themeText} hover:${themeBorder} transition`}>
-                                            {item}
-                                            {!readOnly && <button onClick={() => deleteItem(group, item)} className="text-slate-300 hover:text-rose-500"><X size={14} /></button>}
-                                        </span>
-                                    ))}
-                                    {items.length === 0 && <span className="text-xs text-slate-400 italic py-1">Nenhum item.</span>}
-                                </div>
-
                                 {!readOnly && (
-                                    <div className="flex gap-2 mt-2 pt-2 border-t border-slate-50">
+                                    <div className="flex gap-2 w-full md:w-auto">
                                         <input
-                                            value={newItem.group === group ? newItem.item : ''}
-                                            onChange={e => setNewItem({ group: group, item: e.target.value })}
-                                            onKeyDown={e => e.key === 'Enter' && addItem(group)}
-                                            placeholder="Novo item..."
-                                            className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-slate-400 bg-white text-slate-900"
+                                            value={newGroup}
+                                            onChange={e => setNewGroup(e.target.value)}
+                                            placeholder="Nome do Novo Grupo..."
+                                            className="border border-slate-300 rounded-lg px-3 py-1 text-sm outline-none focus:border-slate-500 flex-1 bg-white text-slate-900"
                                         />
-                                        <button onClick={() => addItem(group)} className="p-1.5 bg-slate-100 text-slate-500 hover:text-indigo-600 rounded"><Plus size={16} /></button>
+                                        <button onClick={addGroup} className={`text-sm font-bold text-white px-4 py-2 rounded-lg transition flex items-center gap-2 shadow-sm ${themeBtn}`}><FolderPlus size={16} /> Criar</button>
                                     </div>
                                 )}
-                            </Card>
-                        ))}
-                    </div>
+                            </div>
+
+                            {/* Lista de Grupos */}
+                            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+                                {(activeKey && localConfig[activeKey]) && Object.entries((localConfig[activeKey] as Record<string, string[]>) || {}).map(([group, items]) => (
+                                    <Card key={group} className={`relative group/card hover:${themeBorder} transition-colors border-transparent`}>
+                                        <div className="flex justify-between items-center mb-4 pb-3 border-b border-slate-100">
+                                            <div className="font-bold text-slate-800 text-lg truncate pr-2 flex-1">
+                                                <EditableGroupTitle initialName={group} onRename={(n) => renameGroup(group, n)} readOnly={readOnly} />
+                                            </div>
+                                            {!readOnly && (
+                                                <button
+                                                    type="button"
+                                                    onClick={(e) => deleteGroup(group, e)}
+                                                    className="p-1.5 text-slate-300 hover:text-rose-500 rounded transition relative z-50 cursor-pointer"
+                                                    title="Excluir Grupo"
+                                                >
+                                                    <Trash2 size={18} className="pointer-events-none" />
+                                                </button>
+                                            )}
+                                        </div>
+
+                                        <div className="flex flex-wrap gap-2 mb-4">
+                                            {(items || []).map((item: string) => (
+                                                <span key={item} className={`bg-slate-50 text-slate-600 border border-slate-200 pl-3 pr-2 py-1.5 rounded-lg text-sm font-medium flex items-center gap-2 group/item hover:${themeBg} hover:${themeText} hover:${themeBorder} transition`}>
+                                                    {item}
+                                                    {!readOnly && <button onClick={() => deleteItem(group, item)} className="text-slate-300 hover:text-rose-500"><X size={14} /></button>}
+                                                </span>
+                                            ))}
+                                            {items.length === 0 && <span className="text-xs text-slate-400 italic py-1">Nenhum item.</span>}
+                                        </div>
+
+                                        {!readOnly && (
+                                            <div className="flex gap-2 mt-2 pt-2 border-t border-slate-50">
+                                                <input
+                                                    value={newItem.group === group ? newItem.item : ''}
+                                                    onChange={e => setNewItem({ group: group, item: e.target.value })}
+                                                    onKeyDown={e => e.key === 'Enter' && addItem(group)}
+                                                    placeholder="Novo item..."
+                                                    className="flex-1 border border-slate-200 rounded px-2 py-1 text-xs outline-none focus:border-slate-400 bg-white text-slate-900"
+                                                />
+                                                <button onClick={() => addItem(group)} className="p-1.5 bg-slate-100 text-slate-500 hover:text-indigo-600 rounded"><Plus size={16} /></button>
+                                            </div>
+                                        )}
+                                    </Card>
+                                ))}
+                            </div>
+                        </div>
+                    )}
                 </div>
 
                 {/* BOTÃO DE SAIR - APENAS VISÍVEL NO MOBILE DENTRO DE SETTINGS (POIS SIDEBAR ESTÁ OCULTA) */}

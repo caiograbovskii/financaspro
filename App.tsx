@@ -104,7 +104,17 @@ function LoginScreen() {
 }
 
 // --- App Principal ---
+// --- App Wrapper for Providers ---
 export default function App() {
+    return (
+        <ToastProvider>
+            <MainApp />
+        </ToastProvider>
+    );
+}
+
+function MainApp() {
+    const { showToast } = useToast();
     const [session, setSession] = useState<any>(null);
     const [userRole, setUserRole] = useState<UserRole | null>(null);
     const [userMap, setUserMap] = useState<Record<string, string>>({});
@@ -115,6 +125,8 @@ export default function App() {
     const [data, setData] = useState<AppState>(INITIAL_STATE);
     const [activeModule, setActiveModule] = useState<'dashboard' | 'weekly' | 'goals' | 'investments' | 'settings'>('dashboard');
     const [dateFilter, setDateFilter] = useState<DateFilter>({ month: new Date().getMonth(), year: new Date().getFullYear() });
+
+    const [showCelebration, setShowCelebration] = useState(false);
 
     // Estados de UI
     const [txModalOpen, setTxModalOpen] = useState(false);
@@ -440,7 +452,7 @@ export default function App() {
             const currentSaved = (currentConfig as any).savedWeeks || {};
             const newConfig = { ...currentConfig, savedWeeks: { ...currentSaved, [key]: data.weeklyConfigs } };
             await handleUpdateCategories(newConfig);
-            alert(`Datas salvas!`);
+            showToast(`Datas salvas!`, 'success');
         } catch (e) { console.error(e); }
     };
 
@@ -470,6 +482,8 @@ export default function App() {
             const { data: inserted } = await supabase.from('goals').insert({ user_id: session.user.id, name: safeGoal.name, target_amount: safeGoal.targetAmount, current_amount: safeGoal.currentAmount, linked_investment_ids: safeGoal.linkedInvestmentIds || [], history: [], deadline: safeGoal.deadline, reason: safeGoal.reason }).select().single();
             if (inserted) {
                 setData(prev => ({ ...prev, goals: prev.goals.map(g => g.name === safeGoal.name && !g.id ? { ...g, id: inserted.id } : g) }));
+                setShowCelebration(true);
+                showToast('Meta criada com sucesso! 🚀', 'success');
             } else { loadData(session.user.id); }
         } else {
             // Fallback local se não estiver configurado
@@ -552,7 +566,7 @@ export default function App() {
     const deleteTransaction = async (id: string) => {
         if (isConfigured) {
             const { error } = await supabase.from('transactions').delete().eq('id', id);
-            if (error) alert('Erro ao excluir: ' + error.message);
+            if (error) showToast('Erro ao excluir: ' + error.message, 'error');
             else loadData(session.user.id);
         } else {
             setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
@@ -578,7 +592,7 @@ export default function App() {
                 await supabase.from('goals').update({ linked_investment_ids: newIds, current_amount: newAmount }).eq('id', goal.id);
             }
             const { error } = await supabase.from('investments').delete().eq('id', id);
-            if (error) alert('Erro ao excluir investimento'); else loadData(session.user.id);
+            if (error) showToast('Erro ao excluir investimento', 'error'); else loadData(session.user.id);
         } else {
             setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id), goals: newGoals }));
         }
@@ -587,7 +601,7 @@ export default function App() {
     const handleDeleteGoal = async (id: string) => {
         if (isConfigured) {
             const { error } = await supabase.from('goals').delete().eq('id', id);
-            if (error) alert('Erro ao excluir meta'); else loadData(session.user.id);
+            if (error) showToast('Erro ao excluir meta', 'error'); else loadData(session.user.id);
         } else {
             setData(prev => ({ ...prev, goals: prev.goals.filter(g => g.id !== id) }));
         }
