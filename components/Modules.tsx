@@ -12,7 +12,11 @@ import {
 } from '../types';
 
 // Importando as ferramentas compartilhadas
-import { Card, UserDot, HistoryManager } from './Shared';
+import { Card, UserDot, HistoryManager, useToast } from './Shared';
+// NOTE: I accidentally put useToast in SharedUI.tsx in plan but Shared.tsx in thought. I should check where I wrote SharedUI and align.
+// I wrote to `components/SharedUI.tsx`. I should import from there to be safe.
+// Wait, Card/UserDot are in 'Shared.tsx'. I should probably put Toast there or import from SharedUI.
+// I will import form './SharedUI'.
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
 
@@ -27,6 +31,93 @@ interface WeeklyProps {
     onSaveConfig: (idx: number) => void;
     onDeleteTransaction?: (id: string) => void;
 }
+
+// --- HELPER TROCAR SENHA ---
+import { supabase } from '../supabaseClient'; // Need to ensure supabase is imported in this scope or passed. Modules.tsx usually imports it? 
+// Modules.tsx DOES NOT import supabase currently (it receives data via props mostly).
+// I need to check imports.
+// Checking file... Modules.tsx usually does NOT import logic. 
+// However, `supabaseClient` is in parent.
+// I should probably add `supabase` import to Modules.tsx top level.
+
+const ChangePasswordForm = ({ showToast }: { showToast: any }) => {
+    const [password, setPassword] = useState('');
+    const [confirm, setConfirm] = useState('');
+    const [loading, setLoading] = useState(false);
+
+    const handleChange = async () => {
+        if (password.length < 6) { showToast('A senha deve ter pelo menos 6 caracteres.', 'error'); return; }
+        if (password !== confirm) { showToast('As senhas não conferem.', 'error'); return; }
+
+        setLoading(true);
+        const { error } = await supabase.auth.updateUser({ password: password });
+
+        if (error) {
+            showToast('Erro ao atualizar senha: ' + error.message, 'error');
+        } else {
+            showToast('Senha atualizada com sucesso!', 'success');
+            setPassword('');
+            setConfirm('');
+        }
+        setLoading(false);
+    };
+
+    return (
+        <div className="bg-white p-6 rounded-2xl border border-slate-200 shadow-sm max-w-lg">
+            <h3 className="font-bold text-slate-800 mb-4 text-lg">Alterar Senha</h3>
+            <div className="space-y-4">
+                <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Nova Senha</label>
+                    <input type="password" value={password} onChange={e => setPassword(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 transition" />
+                </div>
+                <div>
+                    <label className="text-xs font-bold text-slate-500 uppercase">Confirmar Nova Senha</label>
+                    <input type="password" value={confirm} onChange={e => setConfirm(e.target.value)} className="w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-indigo-500 transition" />
+                </div>
+                <button onClick={handleChange} disabled={loading} className="w-full bg-slate-900 text-white py-3 rounded-xl font-bold hover:bg-slate-800 transition shadow-lg disabled:opacity-50">
+                    {loading ? 'Atualizando...' : 'Atualizar Senha'}
+                </button>
+            </div>
+        </div>
+    );
+};
+
+// --- HELPER PARA EDITAR TÍTULO ---
+const EditableGroupTitle = ({ initialName, onRename, readOnly }: { initialName: string, onRename: (n: string) => void, readOnly?: boolean }) => {
+    const [isEditing, setIsEditing] = useState(false);
+    const [name, setName] = useState(initialName);
+    const inputRef = React.useRef<HTMLInputElement>(null);
+
+    useEffect(() => {
+        if (isEditing && inputRef.current) inputRef.current.focus();
+    }, [isEditing]);
+
+    const handleFinish = () => {
+        setIsEditing(false);
+        if (name.trim()) onRename(name.trim());
+        else setName(initialName);
+    };
+
+    if (isEditing && !readOnly) {
+        return (
+            <input
+                ref={inputRef}
+                value={name}
+                onChange={e => setName(e.target.value)}
+                onBlur={handleFinish}
+                onKeyDown={e => e.key === 'Enter' && handleFinish()}
+                className="w-full bg-white border border-indigo-300 rounded px-1 outline-none text-slate-800"
+            />
+        );
+    }
+
+    return (
+        <div className="flex items-center gap-2 group-hover/title:text-indigo-600 transition-colors cursor-pointer" onClick={() => !readOnly && setIsEditing(true)} title="Clique para editar">
+            {initialName}
+            {!readOnly && <Edit2 size={14} className="opacity-0 group-hover/title:opacity-100 text-slate-300" />}
+        </div>
+    );
+};
 
 export const WeeklyCosts: React.FC<WeeklyProps> = ({
     transactions, configs, updateConfig, onEditTransaction, readOnly, onSaveConfig, onDeleteTransaction
@@ -483,7 +574,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 // --- SETTINGS VIEW ---
 export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void }> = ({ config, onUpdate, readOnly, onLogout }) => {
     const [localConfig, setLocalConfig] = useState<CategoryConfig>(config);
-    const [activeTab, setActiveTab] = useState<'expenses' | 'investments' | 'income'>('expenses');
+    const [activeTab, setActiveTab] = useState<'expenses' | 'investments' | 'income' | 'security'>('expenses');
 
     // Estados para novos inputs
     const [newItem, setNewItem] = useState<{ group: string, item: string }>({ group: '', item: '' });
@@ -544,9 +635,10 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
 
             // Atualiza servidor/pai IMEDIATAMENTE
             onUpdate(safeConfig);
+            showToast('Grupo excluído com sucesso!', 'success');
         } catch (error) {
             console.error("Erro ao excluir grupo:", error);
-            alert("Erro ao excluir grupo. Verifique o console.");
+            showToast("Erro ao excluir grupo.", 'error');
         }
     };
 
@@ -617,6 +709,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
                 <button onClick={() => setActiveTab('expenses')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'expenses' ? 'bg-rose-50 text-rose-600 shadow-sm ring-1 ring-rose-200' : 'text-slate-500 hover:bg-slate-50'}`}><Layers size={18} /> Despesas</button>
                 <button onClick={() => setActiveTab('investments')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'investments' ? 'bg-indigo-50 text-indigo-600 shadow-sm ring-1 ring-indigo-200' : 'text-slate-500 hover:bg-slate-50'}`}><Briefcase size={18} /> Investimentos</button>
                 <button onClick={() => setActiveTab('income')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'income' ? 'bg-emerald-50 text-emerald-600 shadow-sm ring-1 ring-emerald-200' : 'text-slate-500 hover:bg-slate-50'}`}><Wallet size={18} /> Receitas</button>
+                <button onClick={() => setActiveTab('security')} className={`flex items-center gap-2 px-6 py-2.5 rounded-lg text-sm font-bold transition whitespace-nowrap ${activeTab === 'security' ? 'bg-slate-100 text-slate-700 shadow-sm ring-1 ring-slate-300' : 'text-slate-500 hover:bg-slate-50'}`}>🔒 Segurança</button>
             </div>
 
             {/* Content Area */}
