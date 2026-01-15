@@ -1,0 +1,7 @@
+{
+  "name": "FinancePro AI Dashboard",
+  "description": "A comprehensive personal finance dashboard with specialized modules for weekly costs, credit cards, goals, and investments, powered by Gemini AI for voice assistance.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
