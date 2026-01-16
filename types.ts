@@ -66,6 +66,8 @@ export interface CategoryConfig {
   income: { [group: string]: string[] };
   investment: { [group: string]: string[] };
   weeklyConfigs?: WeeklyConfig[];
+  mentorNotes?: { id: string; message: string; date: string; author: string; type?: 'info' | 'warning' | 'star' }[];
+  savedWeeks?: Record<string, WeeklyConfig[]>;
 }
 
 export interface AppState {

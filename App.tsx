@@ -3,7 +3,8 @@ import {
     LayoutDashboard, CalendarRange, Target,
     Briefcase, Plus, ChevronLeft, ChevronRight,
     TrendingUp, TrendingDown, Wallet, Settings, LogOut, X,
-    Edit2, Trash2, ArrowUpRight, AlertTriangle, Trophy, Calendar, Info, Menu
+    Edit2, Trash2, ArrowUpRight, AlertTriangle, Trophy, Calendar, Info, Menu,
+    RefreshCcw, MessageSquare, Send, Star, User, Brain
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, CartesianGrid, LabelList, ResponsiveContainer,
@@ -561,6 +562,20 @@ function MainApp() {
         });
     };
 
+    const handleAddNote = async (message: string) => {
+        const newNote = { id: Date.now().toString(), message, date: new Date().toISOString(), author: 'Flávia (Mentora)', type: 'star' as any };
+        const newNotes = [newNote, ...(data.categoryConfig.mentorNotes || [])];
+        const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+        handleUpdateCategories(newConfig);
+        showToast('Recado enviado para a família!', 'success');
+    };
+
+    const handleDeleteNote = async (id: string) => {
+        const newNotes = (data.categoryConfig.mentorNotes || []).filter(n => n.id !== id);
+        const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+        handleUpdateCategories(newConfig);
+    };
+
     const openNewTransaction = () => { setEditingTransaction(null); setTxModalOpen(true); };
     const openEditTransaction = (t: Transaction) => { setEditingTransaction(t); setTxModalOpen(true); };
 
@@ -639,25 +654,121 @@ function MainApp() {
                     {activeModule === 'dashboard' && (
                         <div className="space-y-6 md:space-y-8 animate-fade-in">
 
-                            {/* AI INSIGHTS */}
-                            <div className="flex justify-between items-center mb-2">
-                                <h2 className="text-lg font-bold text-slate-700">Insights</h2>
+                            {/* INSIGHTS SECTION (AI) */}
+                            <div className="mb-8 animate-fade-in-up">
+                                <div className="flex justify-between items-center mb-4">
+                                    <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2">
+                                        <Brain size={24} className="text-indigo-600" />
+                                        Consultor IA
+                                    </h2>
+                                    <button onClick={() => setDismissedInsights([])} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
+                                        <RefreshCcw size={14} /> Atualizar Análise
+                                    </button>
+                                </div>
+
+                                {/* Score Card */}
+                                <div className="mb-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
+
+                                    <div className="flex items-center gap-4 relative z-10">
+                                        <div className={`w-20 h-20 rounded-full flex items-center justify-center border-4 text-2xl font-bold ${insights.score.score >= 80 ? 'border-emerald-400 text-emerald-400' : insights.score.score >= 60 ? 'border-amber-400 text-amber-400' : 'border-rose-400 text-rose-400'}`}>
+                                            {insights.score.score}
+                                        </div>
+                                        <div>
+                                            <h3 className="text-slate-300 text-sm uppercase font-bold tracking-wider">Score Financeiro</h3>
+                                            <p className="text-2xl font-bold">{insights.score.status}</p>
+                                        </div>
+                                    </div>
+                                    <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
+                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
+                                    </div>
+                                </div>
+
+                                {/* Cards de Insights */}
+                                {insights.insights.filter(i => i.id !== 'daily-wisdom').length > 0 ? (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                                        {insights.insights.filter(i => i.id !== 'daily-wisdom').map(item => (
+                                            <div key={item.id} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm relative group animate-fade-in ${item.color === 'emerald' ? 'bg-emerald-50 border-emerald-100' : item.color === 'orange' ? 'bg-orange-50 border-orange-100' : item.color === 'rose' ? 'bg-rose-50 border-rose-100' : item.color === 'indigo' ? 'bg-indigo-50 border-indigo-100' : item.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
+                                                <div className={`p-2 rounded-lg ${item.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : item.color === 'orange' ? 'bg-orange-100 text-orange-600' : item.color === 'rose' ? 'bg-rose-100 text-rose-600' : item.color === 'indigo' ? 'bg-indigo-100 text-indigo-600' : item.color === 'purple' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                    <item.icon size={18} />
+                                                </div>
+                                                <div className="flex-1">
+                                                    <h4 className={`text-sm font-bold ${item.color === 'emerald' ? 'text-emerald-800' : item.color === 'orange' ? 'text-orange-800' : item.color === 'rose' ? 'text-rose-800' : item.color === 'indigo' ? 'text-indigo-800' : item.color === 'purple' ? 'text-purple-800' : 'text-blue-800'}`}>{item.title}</h4>
+                                                    <p className="text-xs text-slate-600 mt-1">{item.message}</p>
+                                                </div>
+                                                <button onClick={() => setDismissedInsights([...dismissedInsights, item.id])} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition"><X size={14} /></button>
+                                            </div>
+                                        ))}
+                                    </div>
+                                ) : (
+                                    <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 mb-4">
+                                        <p className="text-slate-500 text-sm">Nenhum novo insight no momento. Você está no controle!</p>
+                                    </div>
+                                )}
                             </div>
 
-                            {insights.length > 0 && (
-                                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                                    {insights.map(item => (
-                                        <div key={item.id} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm relative group animate-fade-in ${item.color === 'emerald' ? 'bg-emerald-50 border-emerald-100' : item.color === 'orange' ? 'bg-orange-50 border-orange-100' : item.color === 'rose' ? 'bg-rose-50 border-rose-100' : item.color === 'indigo' ? 'bg-indigo-50 border-indigo-100' : item.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
-                                            <div className={`p-2 rounded-lg ${item.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : item.color === 'orange' ? 'bg-orange-100 text-orange-600' : item.color === 'rose' ? 'bg-rose-100 text-rose-600' : item.color === 'indigo' ? 'bg-indigo-100 text-indigo-600' : item.color === 'purple' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                <item.icon size={18} />
-                                            </div>
-                                            <div className="flex-1">
-                                                <h4 className={`text-sm font-bold ${item.color === 'emerald' ? 'text-emerald-800' : item.color === 'orange' ? 'text-orange-800' : item.color === 'rose' ? 'text-rose-800' : item.color === 'indigo' ? 'text-indigo-800' : item.color === 'purple' ? 'text-purple-800' : 'text-blue-800'}`}>{item.title}</h4>
-                                                <p className="text-xs text-slate-600 mt-1">{item.message}</p>
-                                            </div>
-                                            <button onClick={() => setDismissedInsights([...dismissedInsights, item.id])} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition"><X size={14} /></button>
+                            {/* MURAL DA MENTORA */}
+                            {(session?.user?.email === 'flavia@mentora.com' || (data.categoryConfig.mentorNotes && data.categoryConfig.mentorNotes.length > 0)) && (
+                                <div className="mb-8 bg-[#FDF8F6] border border-orange-100 rounded-2xl p-6 relative overflow-hidden animate-fade-in">
+                                    <div className="absolute top-0 right-0 p-4 opacity-5"><User size={120} /></div>
+                                    <div className="flex items-center gap-3 mb-4 relative z-10">
+                                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 border border-orange-200">
+                                            <Star size={20} fill="currentColor" />
                                         </div>
-                                    ))}
+                                        <div>
+                                            <h3 className="font-bold text-slate-800">Mural da Mentora</h3>
+                                            <p className="text-xs text-slate-500">Recados oficiais de Flávia</p>
+                                        </div>
+                                    </div>
+
+                                    {/* Se for a Flávia, mostra input */}
+                                    {session?.user?.email === 'flavia@mentora.com' && (
+                                        <div className="mb-6 flex gap-2 relative z-10">
+                                            <input
+                                                id="mentor-input"
+                                                className="flex-1 bg-white border border-orange-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-orange-200"
+                                                placeholder="Escreva um recado para a família..."
+                                                onKeyDown={e => {
+                                                    if (e.key === 'Enter') {
+                                                        const val = e.currentTarget.value;
+                                                        if (val) { handleAddNote(val); e.currentTarget.value = ''; }
+                                                    }
+                                                }}
+                                            />
+                                            <button
+                                                onClick={() => {
+                                                    const inp = document.getElementById('mentor-input') as HTMLInputElement;
+                                                    if (inp && inp.value) { handleAddNote(inp.value); inp.value = ''; }
+                                                }}
+                                                className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-xl transition shadow-lg shadow-orange-200"
+                                            >
+                                                <Send size={20} />
+                                            </button>
+                                        </div>
+                                    )}
+
+                                    {/* Lista de Recados */}
+                                    <div className="space-y-3 relative z-10">
+                                        {data.categoryConfig.mentorNotes?.map((note: any) => (
+                                            <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex gap-3 animate-fade-in hover:shadow-md transition">
+                                                <div className="mt-1 text-orange-400"><MessageSquare size={16} /></div>
+                                                <div className="flex-1">
+                                                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{note.message}</p>
+                                                    <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold flex items-center gap-1">
+                                                        <span>{new Date(note.date).toLocaleDateString('pt-BR')}</span>
+                                                        <span>•</span>
+                                                        <span>{note.author}</span>
+                                                    </p>
+                                                </div>
+                                                {session?.user?.email === 'flavia@mentora.com' && (
+                                                    <button onClick={() => handleDeleteNote(note.id)} className="text-slate-300 hover:text-rose-500 transition p-2"><Trash2 size={14} /></button>
+                                                )}
+                                            </div>
+                                        ))}
+                                        {(!data.categoryConfig.mentorNotes || data.categoryConfig.mentorNotes.length === 0) && (
+                                            <p className="text-center text-slate-400 text-sm italic py-4 bg-white/50 rounded-xl border border-dashed border-orange-100">Nenhum recado fixado no momento.</p>
+                                        )}
+                                    </div>
                                 </div>
                             )}
 
