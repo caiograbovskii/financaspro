@@ -11,13 +11,38 @@ export interface Insight {
     color: string;
 }
 
-const PSYCHOLOGY_TIPS = [
-    "A recompensa imediata é a inimiga da liberdade financeira futura.",
-    "Pequenos vazamentos afundam grandes navios. Atenção aos gastos formiguinha!",
-    "Lembre-se: Dinheiro é ferramenta, não objetivo.",
-    "Ao investir, o tempo é seu maior aliado, não tente vencer o mercado, flua com ele.",
-    "Antes de comprar, espere 24h. Se a vontade passar, você economizou.",
+const DAILY_QUOTES = [
+    { text: "Os planos bem elaborados levam à fartura; mas o apressado acaba na miséria.", author: "Provérbios 21:5 (NVT)", source: "Bíblia Sagrada" },
+    { text: "Quem ama o dinheiro jamais terá o suficiente; quem ama a riqueza jamais ficará satisfeito.", author: "Eclesiastes 5:10 (NVT)", source: "Bíblia Sagrada" },
+    { text: "A sabedoria preserva a vida de quem a possui.", author: "Eclesiastes 7:12 (NVT)", source: "Bíblia Sagrada" },
+    { text: "O rico domina sobre o pobre; quem toma emprestado é escravo de quem empresta.", author: "Provérbios 22:7 (NVT)", source: "Bíblia Sagrada" },
+    { text: "A riqueza obtida com desonestidade diminuirá, mas quem a ajunta aos poucos a fará aumentar.", author: "Provérbios 13:11 (NVT)", source: "Bíblia Sagrada" },
+    { text: "Não trabalhe pelo dinheiro. Faça o dinheiro trabalhar para você.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
+    { text: "Ativos põem dinheiro no seu bolso. Passivos tiram dinheiro do seu bolso.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
+    { text: "Ou você controla o seu dinheiro ou ele controlará você.", author: "T. Harv Eker", source: "Segredos da Mente Milionária" },
+    { text: "Uma parte de tudo que você ganha pertence a você.", author: "George S. Clason", source: "O Homem Mais Rico da Babilônia" },
+    { text: "Riqueza é o que você não vê.", author: "Morgan Housel", source: "A Psicologia Financeira" },
+    { text: "Enriquecer é uma questão de escolha, não de sorte.", author: "Gustavo Cerbasi", source: "Casais Inteligentes Enriquecem Juntos" },
+    { text: "Pobreza não é falta de dinheiro, é falta de sabedoria.", author: "Tiago Brunet", source: "Dinheiro é Emocional" }
 ];
+
+const SCORE_PHRASES = {
+    high: [
+        "Extraordinário! Você está no comando total.",
+        "Uma fortaleza financeira inabalável.",
+        "Modo Mente Milionária: ATIVADO. 🚀"
+    ],
+    mid: [
+        "Você está no caminho certo, continue firme.",
+        "Bom trabalho, mas ainda há margem para otimizar.",
+        "Constância é a chave."
+    ],
+    low: [
+        "Alerta: Precisamos estancar esse sangramento agora.",
+        "Atenção total: Sua saúde financeira pede socorro.",
+        "O primeiro passo para sair do buraco é parar de cavar."
+    ]
+};
 
 export interface HealthScore {
     score: number;
@@ -63,8 +88,9 @@ export const AIConseiller = {
         investments: InvestmentAsset[],
         config: CategoryConfig,
         month: number,
-        year: number
-    ): { insights: Insight[], score: HealthScore } => {
+        year: number,
+        seed: number = 0
+    ): { insights: Insight[], score: HealthScore, dailyQuote: typeof DAILY_QUOTES[0] } => {
         const insights: Insight[] = [];
         const today = new Date();
         const currentMonthTxs = transactions.filter(t => {
@@ -80,16 +106,20 @@ export const AIConseiller = {
         const goalProgresses = goals.map(g => (g.currentAmount || 0) / (g.targetAmount || 1));
         const health = AIConseiller.calculateScore(income, expense, totalInvested, goalProgresses);
 
+        // Pick dynamic score status message based on seed
+        const scorePhrases = health.score >= 80 ? SCORE_PHRASES.high : health.score >= 60 ? SCORE_PHRASES.mid : SCORE_PHRASES.low;
+        health.details = scorePhrases[seed % scorePhrases.length];
+
         // --- GERAÇÃO DE INSIGHTS ---
 
-        // 1. O Efeito Latte (Gastos Pequenos)
+        // 1. O Efeito Latte (Gastos Pequenos) - Random Chance based on seed
         const smallPurchases = currentMonthTxs.filter(t => t.type === 'expense' && t.amount < 30).reduce((a, b) => a + b.amount, 0);
-        if (smallPurchases > 300) {
+        if (smallPurchases > 300 && (seed % 2 === 0)) {
             insights.push({
                 id: 'latte-effect',
                 type: 'warning',
                 title: 'O "Efeito Cafézinho"',
-                message: `Você gastou R$ ${smallPurchases.toFixed(2)} em pequenas compras (< R$ 30). Esses "gastos invisíveis" somados pagariam um jantar de luxo!`,
+                message: `Você gastou R$ ${smallPurchases.toFixed(2)} em pequenas compras (< R$ 30).`,
                 icon: Coffee,
                 color: 'orange'
             });
@@ -107,7 +137,7 @@ export const AIConseiller = {
                 id: 'dining-alert',
                 type: 'warning',
                 title: 'Dopamina Cara',
-                message: `Cuidado: ${((dining / income) * 100).toFixed(0)}% da sua renda foi para Lazer/Restaurantes. Seu cérebro adora, seu bolso chora.`,
+                message: `Cuidado: ${((dining / income) * 100).toFixed(0)}% da sua renda foi para Lazer/Restaurantes.`,
                 icon: AlertTriangle,
                 color: 'rose'
             });
@@ -119,7 +149,7 @@ export const AIConseiller = {
                 id: 'great-score',
                 type: 'success',
                 title: 'Domínio Financeiro 👑',
-                message: `Seu Score Financeiro é de ${health.score}/100. Você está construindo riqueza real. Considere aumentar seus aportes em investimentos de longo prazo.`,
+                message: `Seu Score Financeiro é de ${health.score}/100. ${health.details}`,
                 icon: Award,
                 color: 'emerald'
             });
@@ -128,22 +158,17 @@ export const AIConseiller = {
                 id: 'crisis-mode',
                 type: 'warning',
                 title: 'Alerta de Saúde Financeira',
-                message: `Seu score está em ${health.score}/100. A luz vermelha acendeu. Foque em cortar custos não essenciais IMEDIATAMENTE.`,
+                message: `Score ${health.score}/100. ${health.details}`,
                 icon: Zap,
                 color: 'rose'
             });
         }
 
-        // 4. Conselho de Investimento / Filosófico
-        const tipIndex = (month + year + today.getDate()) % PSYCHOLOGY_TIPS.length;
-        insights.push({
-            id: 'daily-wisdom',
-            type: 'info',
-            title: 'Insight do Dia',
-            message: PSYCHOLOGY_TIPS[tipIndex],
-            icon: Brain,
-            color: 'indigo'
-        });
+        // 4. Citação do Dia (Global - Mesma para todos no mesmo dia)
+        // Usa data como seed para consistência global
+        const daySeed = (today.getFullYear() * 1000) + (today.getMonth() * 31) + today.getDate();
+        const quoteIndex = daySeed % DAILY_QUOTES.length;
+        const dailyQuote = DAILY_QUOTES[quoteIndex];
 
         // 5. Oportunidade de Rebalanceamento
         const balance = income - expense;
@@ -154,13 +179,13 @@ export const AIConseiller = {
                     id: 'invest-opp',
                     type: 'idea',
                     title: 'Dinheiro na Mesa',
-                    message: `Sobrou R$ ${balance.toFixed(0)}. Não deixe parado. A inflação devora o dinheiro parado. Que tal aportar?`,
+                    message: `Sobrou R$ ${balance.toFixed(0)}. Inflação devora dinheiro parado. Aporte em "${lowAllocAsset.ticker}"?`,
                     icon: TrendingUp,
                     color: 'purple'
                 });
             }
         }
 
-        return { insights, score: health };
+        return { insights, score: health, dailyQuote };
     }
 };

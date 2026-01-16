@@ -4,7 +4,7 @@ import {
     Briefcase, Plus, ChevronLeft, ChevronRight,
     TrendingUp, TrendingDown, Wallet, Settings, LogOut, X,
     Edit2, Trash2, ArrowUpRight, AlertTriangle, Trophy, Calendar, Info, Menu,
-    RefreshCcw, MessageSquare, Send, Star, User, Brain
+    RefreshCcw, MessageSquare, Send, Star, User, Brain, Quote
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, CartesianGrid, LabelList, ResponsiveContainer,
@@ -137,10 +137,47 @@ function MainApp() {
     const [currentPage, setCurrentPage] = useState(0);
     const ITEMS_PER_PAGE = 5;
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
+    const [refreshSeed, setRefreshSeed] = useState(0);
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
 
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
+
+    // --- EFEITOS DE SESSÃO ---
+
+    // 1. Sempre voltar para Dashboard ao recarregar
+    useEffect(() => {
+        setActiveModule('dashboard');
+    }, []);
+
+    // 2. Timeout de Sessão (30 min inatividade)
+    useEffect(() => {
+        const checkSession = () => {
+            const lastActive = localStorage.getItem('fp_last_active');
+            const now = Date.now();
+            if (lastActive && (now - Number(lastActive) > 30 * 60 * 1000)) {
+                // Sessão expirada
+                setSession(null);
+                supabase.auth.signOut();
+                localStorage.removeItem('fp_last_active');
+                if (session) alert('Sessão expirada por inatividade. Por favor, faça login novamente.');
+            } else {
+                localStorage.setItem('fp_last_active', now.toString());
+            }
+        };
+
+        const activityEvents = ['mousedown', 'keydown', 'scroll', 'touchstart'];
+        const updateActivity = () => localStorage.setItem('fp_last_active', Date.now().toString());
+
+        activityEvents.forEach(e => window.addEventListener(e, updateActivity));
+        const interval = setInterval(checkSession, 60000); // Checar a cada minuto
+        updateActivity(); // Init
+
+        return () => {
+            activityEvents.forEach(e => window.removeEventListener(e, updateActivity));
+            clearInterval(interval);
+        };
+    }, [session]);
 
     // --- Inicialização ---
     useEffect(() => {
@@ -354,12 +391,13 @@ function MainApp() {
     // --- AI INSIGHTS ---
     // --- AI INSIGHTS ---
     const insights = useMemo(() => {
-        const analysis = AIConseiller.analyze(data.transactions, data.goals, data.investments, data.categoryConfig, dateFilter.month, dateFilter.year);
+        const analysis = AIConseiller.analyze(data.transactions, data.goals, data.investments, data.categoryConfig, dateFilter.month, dateFilter.year, refreshSeed);
         return {
             score: analysis.score,
+            dailyQuote: analysis.dailyQuote,
             insights: analysis.insights.filter(i => !dismissedInsights.includes(i.id))
         };
-    }, [data.transactions, data.goals, data.investments, dismissedInsights, dateFilter]);
+    }, [data.transactions, data.goals, data.investments, dismissedInsights, dateFilter, refreshSeed]);
 
     // --- Handlers ---
     const handleUpdateCategories = async (newConfig: CategoryConfig) => {
@@ -664,7 +702,7 @@ function MainApp() {
                                         <Brain size={24} className="text-indigo-600" />
                                         Consultor IA
                                     </h2>
-                                    <button onClick={() => setDismissedInsights([])} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
+                                    <button onClick={() => { setDismissedInsights([]); setRefreshSeed(s => s + 1); }} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
                                         <RefreshCcw size={14} /> Atualizar Análise
                                     </button>
                                 </div>
@@ -708,6 +746,19 @@ function MainApp() {
                                         <p className="text-slate-500 text-sm">Nenhum novo insight no momento. Você está no controle!</p>
                                     </div>
                                 )}
+
+                                {/* CITAÇÃO DO DIA */}
+                                <div className="mt-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 relative">
+                                    <Quote size={40} className="absolute top-4 left-4 text-indigo-200 opacity-50" />
+                                    <div className="relative z-10 pl-6 md:pl-10">
+                                        <p className="text-lg font-serif italic text-slate-700 mb-3">"{insights.dailyQuote.text}"</p>
+                                        <div className="flex items-center gap-2">
+                                            <div className="h-px bg-indigo-200 w-8"></div>
+                                            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">{insights.dailyQuote.author}</p>
+                                            <span className="text-xs text-slate-400">• {insights.dailyQuote.source}</span>
+                                        </div>
+                                    </div>
+                                </div>
                             </div>
 
                             {/* MURAL DA MENTORA */}
