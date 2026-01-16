@@ -564,6 +564,7 @@ function MainApp() {
     };
 
     const deleteTransaction = async (id: string) => {
+        if (!confirm('Tem certeza que deseja excluir esta transação?')) return;
         if (isConfigured) {
             const { error } = await supabase.from('transactions').delete().eq('id', id);
             if (error) showToast('Erro ao excluir: ' + error.message, 'error');
@@ -574,6 +575,7 @@ function MainApp() {
     };
 
     const handleDeleteInvestment = async (id: string) => {
+        if (!confirm('Tem certeza que deseja excluir este investimento?')) return;
         // Atualiza metas vinculadas
         const affectedGoals = data.goals.filter(g => g.linkedInvestmentIds && g.linkedInvestmentIds.includes(id));
         const newGoals = data.goals.map(g => {
@@ -599,6 +601,7 @@ function MainApp() {
     };
 
     const handleDeleteGoal = async (id: string) => {
+        if (!confirm('Tem certeza que deseja excluir esta meta?')) return;
         if (isConfigured) {
             const { error } = await supabase.from('goals').delete().eq('id', id);
             if (error) showToast('Erro ao excluir meta', 'error'); else loadData(session.user.id);
@@ -653,7 +656,16 @@ function MainApp() {
             <main className="flex-1 flex flex-col overflow-hidden relative w-full">
                 <header className="h-16 md:h-20 bg-white border-b border-slate-200 flex justify-between items-center px-4 md:px-8 shrink-0">
                     <div className="flex flex-col">
-                        <h1 className="text-xl md:text-2xl font-bold text-slate-800 capitalize">{activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}</h1>
+                        <div className='flex items-baseline gap-2'>
+                            <h1 className="text-xl md:text-2xl font-bold text-slate-800 capitalize">{activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}</h1>
+                            {activeModule === 'dashboard' && session?.user?.email && (
+                                <span className="text-lg font-medium text-slate-500">
+                                    {session.user.email === 'caio@casa.com' ? 'Olá Caio' :
+                                        session.user.email === 'carla@casa.com' ? 'Olá Carla' :
+                                            session.user.email === 'flavia@mentora.com' ? 'Olá Flávia' : ''}
+                                </span>
+                            )}
+                        </div>
                     </div>
                     <div className="flex gap-2 md:gap-4">
                         {activeModule === 'dashboard' && !isReadOnly && (
@@ -908,8 +920,8 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
                 <div><label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
                     <select className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
                         {form.type === 'expense'
-                            ? (Object.entries(data.categoryConfig.expense).map(([group, items]: any) => (<optgroup key={group} label={group}>{items.map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
-                            : (Object.entries(data.categoryConfig.income).map(([group, items]: any) => (<optgroup key={group} label={group}>{items.map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
+                            ? (Object.entries(data.categoryConfig.expense || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
+                            : (Object.entries(data.categoryConfig.income || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
                         }
                     </select>
                 </div>

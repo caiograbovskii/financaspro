@@ -548,7 +548,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         if (!safeConfig.expense) safeConfig.expense = {};
         // Garante que income e investment sejam objetos (para grupos)
         if (!safeConfig.income || Array.isArray(safeConfig.income)) safeConfig.income = {};
-        if (!safeConfig.investment || Array.isArray(safeConfig.investment) || (safeConfig.investment.fixed && Array.isArray(safeConfig.investment.fixed))) safeConfig.investment = {};
+        if (!safeConfig.investment || Array.isArray(safeConfig.investment)) safeConfig.investment = {};
 
         setLocalConfig(safeConfig);
     }, [config]);
