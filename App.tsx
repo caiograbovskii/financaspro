@@ -269,6 +269,19 @@ function MainApp() {
                 };
             }
 
+            // BUSCAR MENTOR NOTES DA FLÁVIA (GLOBAL)
+            // Se eu não sou a Flávia, preciso buscar as notas dela para ver
+            const flaviaProfile = profiles?.find((p: any) => p.email === 'flavia@mentora.com');
+            if (flaviaProfile && flaviaProfile.id !== userId) {
+                const { data: flaviaCats } = await supabase.from('categories').select('config').eq('user_id', flaviaProfile.id).maybeSingle();
+                if (flaviaCats?.config?.mentorNotes) {
+                    loadedConfig.mentorNotes = flaviaCats.config.mentorNotes;
+                } else {
+                    // Se não conseguir ler (por RLS ou vazio), exibe vazio ou mantém local
+                    loadedConfig.mentorNotes = [];
+                }
+            }
+
             const investments = (invs.data || []).map((i: any) => ({
                 ...i,
                 totalInvested: Number(i.total_invested || 0),
