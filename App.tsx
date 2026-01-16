@@ -138,6 +138,7 @@ function MainApp() {
     const ITEMS_PER_PAGE = 5;
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
     const [refreshSeed, setRefreshSeed] = useState(0);
+    const [mentorNotes, setMentorNotes] = useState<any[]>([]);
     const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
     const [editingNoteText, setEditingNoteText] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
@@ -271,18 +272,14 @@ function MainApp() {
                 };
             }
 
-            // BUSCAR MENTOR NOTES DA FLÁVIA (GLOBAL)
-            // Se eu não sou a Flávia, preciso buscar as notas dela para ver
-            const flaviaProfile = profiles?.find((p: any) => p.email === 'flavia@mentora.com');
-            if (flaviaProfile && flaviaProfile.id !== userId) {
-                const { data: flaviaCats } = await supabase.from('categories').select('config').eq('user_id', flaviaProfile.id).maybeSingle();
-                if (flaviaCats?.config?.mentorNotes) {
-                    loadedConfig.mentorNotes = flaviaCats.config.mentorNotes;
-                } else {
-                    // Se não conseguir ler (por RLS ou vazio), exibe vazio ou mantém local
-                    loadedConfig.mentorNotes = [];
-                }
-            }
+            // BUSCAR MURAL DA MENTORA (Tabela Dedicada)
+            const { data: mNotes, error: mError } = await supabase
+                .from('mentor_notes')
+                .select('*')
+                .order('created_at', { ascending: false });
+
+            if (mError) console.error("Erro ao buscar mural:", mError);
+            setMentorNotes(mNotes || []);
 
             const investments = (invs.data || []).map((i: any) => ({
                 ...i,
@@ -647,54 +644,53 @@ function MainApp() {
 
     const handleAddNote = async (message: string) => {
         try {
-            console.log('[DEBUG_FLAVIA] Adicionando nota:', message);
-            const newNote = { id: Date.now().toString(), message, date: new Date().toISOString(), author: 'Flávia (Mentora)', type: 'star' as any };
-            const newNotes = [newNote, ...(data.categoryConfig.mentorNotes || [])];
-            const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+            console.log('[DEBUG_FLAVIA] Inserindo nota na tabela...');
+            const { error } = await supabase.from('mentor_notes').insert({
+                message,
+                author_name: 'Flávia (Mentora)',
+                author_email: session.user.email
+            });
 
-            // Persiste no backend PRIMEIRO (sem optimistic update)
-            await handleUpdateCategories(newConfig);
-            console.log('[DEBUG_FLAVIA] Nota persistida. Recarregando dados...');
+            if (error) throw error;
 
-            // Recarrega para garantir sincronia
             await loadData(session.user.id);
-
-            showToast('Recado salvo com sucesso!', 'success');
+            showToast('Recado enviado para a família!', 'success');
         } catch (error: any) {
-            console.error('[DEBUG_FLAVIA] Falha fatal no AddNote:', error);
+            console.error('[DEBUG_FLAVIA] Erro ao inserir:', error);
             showToast('Erro ao salvar: ' + (error.message || 'Desconhecido'), 'error');
         }
     };
 
     const handleEditNote = async (id: string, newMessage: string) => {
         try {
-            console.log('[DEBUG_FLAVIA] Editando nota:', id);
-            const newNotes = (data.categoryConfig.mentorNotes || []).map(n =>
-                n.id === id ? { ...n, message: newMessage, date: new Date().toISOString() } : n
-            );
-            const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+            console.log('[DEBUG_FLAVIA] Editando ID:', id);
+            const { error } = await supabase.from('mentor_notes').update({
+                message: newMessage
+            }).eq('id', id);
 
-            await handleUpdateCategories(newConfig);
+            if (error) throw error;
+
             await loadData(session.user.id);
             setEditingNoteId(null);
             showToast('Recado atualizado!', 'success');
-        } catch (error) {
+        } catch (error: any) {
             console.error('[DEBUG_FLAVIA] Erro ao editar:', error);
-            showToast('Erro ao atualizar recado.', 'error');
+            showToast('Erro ao atualizar: ' + (error.message || 'Desconhecido'), 'error');
         }
     };
 
     const handleDeleteNote = async (id: string) => {
         try {
-            console.log('[DEBUG_FLAVIA] Deletando nota:', id);
-            const newNotes = (data.categoryConfig.mentorNotes || []).filter(n => n.id !== id);
-            const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
-            await handleUpdateCategories(newConfig);
+            console.log('[DEBUG_FLAVIA] Deletando ID:', id);
+            const { error } = await supabase.from('mentor_notes').delete().eq('id', id);
+
+            if (error) throw error;
+
             await loadData(session.user.id);
             showToast('Recado removido.', 'success');
-        } catch (e) {
+        } catch (e: any) {
             console.error('[DEBUG_FLAVIA] Erro ao deletar:', e);
-            showToast('Erro ao remover.', 'error');
+            showToast('Erro ao remover: ' + (e.message || 'Desconhecido'), 'error');
         }
     };
 
@@ -843,7 +839,7 @@ function MainApp() {
                             </div>
 
                             {/* MURAL DA MENTORA */}
-                            {(session?.user?.email === 'flavia@mentora.com' || (data.categoryConfig.mentorNotes && data.categoryConfig.mentorNotes.length > 0)) && (
+                            {(session?.user?.email === 'flavia@mentora.com' || (mentorNotes && mentorNotes.length > 0)) && (
                                 <div className="mb-8 bg-[#FDF8F6] border border-orange-100 rounded-2xl p-6 relative overflow-hidden animate-fade-in">
                                     <div className="absolute top-0 right-0 p-4 opacity-5"><User size={120} /></div>
                                     <div className="flex items-center gap-3 mb-4 relative z-10">
@@ -884,8 +880,8 @@ function MainApp() {
 
                                     {/* Lista de Recados */}
                                     <div className="space-y-3 relative z-10">
-                                        {data.categoryConfig.mentorNotes && data.categoryConfig.mentorNotes.length > 0 ? (
-                                            data.categoryConfig.mentorNotes.map((note: any) => (
+                                        {mentorNotes && mentorNotes.length > 0 ? (
+                                            mentorNotes.map((note: any) => (
                                                 <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex items-start gap-3">
                                                     <div className="mt-1 text-orange-400">
                                                         <MessageSquare size={16} />
@@ -912,8 +908,8 @@ function MainApp() {
                                                                 <p className="text-slate-700 font-medium text-sm md:text-base mb-1">"{note.message}"</p>
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full">{note.author}</span>
-                                                                        <span className="text-xs text-slate-400">{formatDate(note.date.split('T')[0])}</span>
+                                                                        <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full">{note.author_name}</span>
+                                                                        <span className="text-xs text-slate-400">{formatDate(note.created_at?.split('T')[0] || new Date().toISOString())}</span>
                                                                     </div>
                                                                     {isReadOnly && (
                                                                         <div className="flex gap-1">
