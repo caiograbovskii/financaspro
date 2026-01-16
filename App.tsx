@@ -878,10 +878,16 @@ function MainApp() {
                                         </div>
                                     )}
 
-                                    {/* Lista de Recados */}
+                                    {/* Lista de Recados (Filtrada por Mês) */}
                                     <div className="space-y-3 relative z-10">
-                                        {mentorNotes && mentorNotes.length > 0 ? (
-                                            mentorNotes.map((note: any) => (
+                                        {mentorNotes && mentorNotes.filter(n => {
+                                            const nDate = new Date(n.created_at);
+                                            return nDate.getMonth() === dateFilter.month && nDate.getFullYear() === dateFilter.year;
+                                        }).length > 0 ? (
+                                            mentorNotes.filter(n => {
+                                                const nDate = new Date(n.created_at);
+                                                return nDate.getMonth() === dateFilter.month && nDate.getFullYear() === dateFilter.year;
+                                            }).map((note: any) => (
                                                 <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex items-start gap-3">
                                                     <div className="mt-1 text-orange-400">
                                                         <MessageSquare size={16} />
@@ -909,7 +915,7 @@ function MainApp() {
                                                                 <div className="flex items-center justify-between">
                                                                     <div className="flex items-center gap-2">
                                                                         <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full">{note.author_name}</span>
-                                                                        <span className="text-xs text-slate-400">{formatDate(note.created_at?.split('T')[0] || new Date().toISOString())}</span>
+                                                                        <span className="text-xs text-slate-400">{new Date(note.created_at).toLocaleDateString('pt-BR')}</span>
                                                                     </div>
                                                                     {isReadOnly && (
                                                                         <div className="flex gap-1">
@@ -928,7 +934,7 @@ function MainApp() {
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado no momento.</p>
+                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mês.</p>
                                         )}
                                     </div>
                                 </div>
