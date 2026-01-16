@@ -416,19 +416,44 @@ function MainApp() {
 
     // --- Handlers ---
     const handleUpdateCategories = async (newConfig: CategoryConfig) => {
-        setData(prev => ({ ...prev, categoryConfig: newConfig }));
+        // Remover atualização otimista para depuração correta de persistência
+        // setData(prev => ({ ...prev, categoryConfig: newConfig })); - REMOVIDO PARA DEBUG
 
-        if (isConfigured && categoryId) {
+        console.log('[DEBUG_FLAVIA] Iniciando salvamento de categorias...', { categoryId, isConfigured });
+
+        if (!isConfigured) {
+            console.warn('[DEBUG_FLAVIA] Supabase não configurado. Salvando apenas localmente.');
+            setData(prev => ({ ...prev, categoryConfig: newConfig }));
+            return;
+        }
+
+        if (categoryId) {
+            console.log('[DEBUG_FLAVIA] Atualizando registro existente ID:', categoryId);
             const { error } = await supabase.from('categories').update({ config: newConfig }).eq('id', categoryId);
-            if (error) console.error("Erro ao salvar config:", error);
-        } else if (isConfigured) {
+            if (error) {
+                console.error('[DEBUG_FLAVIA] Erro ao atualizar:', error);
+                throw error; // Propagar erro para o chamador
+            }
+            console.log('[DEBUG_FLAVIA] Atualização de sucesso!');
+        } else {
+            console.log('[DEBUG_FLAVIA] Tentando criar novo registro de categorias...');
             const { data: ins, error } = await supabase.from('categories').insert({
                 user_id: session.user.id,
                 config: newConfig
             }).select().single();
-            if (error) console.error("Erro ao criar config:", error);
-            if (ins) setCategoryId(ins.id);
+
+            if (error) {
+                console.error('[DEBUG_FLAVIA] Erro ao inserir:', error);
+                throw error;
+            }
+
+            if (ins) {
+                console.log('[DEBUG_FLAVIA] Registro criado com sucesso ID:', ins.id);
+                setCategoryId(ins.id);
+            }
         }
+        // Atualiza estado local apenas se sucesso no backend
+        setData(prev => ({ ...prev, categoryConfig: newConfig }));
     };
 
     const handleSaveWeeklyConfig = async () => {
@@ -622,28 +647,28 @@ function MainApp() {
 
     const handleAddNote = async (message: string) => {
         try {
+            console.log('[DEBUG_FLAVIA] Adicionando nota:', message);
             const newNote = { id: Date.now().toString(), message, date: new Date().toISOString(), author: 'Flávia (Mentora)', type: 'star' as any };
             const newNotes = [newNote, ...(data.categoryConfig.mentorNotes || [])];
             const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
 
-            // Força atualização local imediata
-            setData(prev => ({ ...prev, categoryConfig: newConfig }));
-
-            // Persiste no backend
+            // Persiste no backend PRIMEIRO (sem optimistic update)
             await handleUpdateCategories(newConfig);
+            console.log('[DEBUG_FLAVIA] Nota persistida. Recarregando dados...');
 
-            // Recarrega para garantir sincronia (especialmente se houver RLS issues)
+            // Recarrega para garantir sincronia
             await loadData(session.user.id);
 
-            showToast('Recado enviado para a família!', 'success');
-        } catch (error) {
-            console.error(error);
-            showToast('Erro ao salvar recado.', 'error');
+            showToast('Recado salvo com sucesso!', 'success');
+        } catch (error: any) {
+            console.error('[DEBUG_FLAVIA] Falha fatal no AddNote:', error);
+            showToast('Erro ao salvar: ' + (error.message || 'Desconhecido'), 'error');
         }
     };
 
     const handleEditNote = async (id: string, newMessage: string) => {
         try {
+            console.log('[DEBUG_FLAVIA] Editando nota:', id);
             const newNotes = (data.categoryConfig.mentorNotes || []).map(n =>
                 n.id === id ? { ...n, message: newMessage, date: new Date().toISOString() } : n
             );
@@ -654,15 +679,23 @@ function MainApp() {
             setEditingNoteId(null);
             showToast('Recado atualizado!', 'success');
         } catch (error) {
-            console.error(error);
+            console.error('[DEBUG_FLAVIA] Erro ao editar:', error);
             showToast('Erro ao atualizar recado.', 'error');
         }
     };
 
     const handleDeleteNote = async (id: string) => {
-        const newNotes = (data.categoryConfig.mentorNotes || []).filter(n => n.id !== id);
-        const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
-        handleUpdateCategories(newConfig);
+        try {
+            console.log('[DEBUG_FLAVIA] Deletando nota:', id);
+            const newNotes = (data.categoryConfig.mentorNotes || []).filter(n => n.id !== id);
+            const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+            await handleUpdateCategories(newConfig);
+            await loadData(session.user.id);
+            showToast('Recado removido.', 'success');
+        } catch (e) {
+            console.error('[DEBUG_FLAVIA] Erro ao deletar:', e);
+            showToast('Erro ao remover.', 'error');
+        }
     };
 
     const openNewTransaction = () => { setEditingTransaction(null); setTxModalOpen(true); };
