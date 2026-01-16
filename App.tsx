@@ -354,8 +354,11 @@ function MainApp() {
     // --- AI INSIGHTS ---
     // --- AI INSIGHTS ---
     const insights = useMemo(() => {
-        return AIConseiller.analyze(data.transactions, data.goals, data.investments, data.categoryConfig, dateFilter.month, dateFilter.year)
-            .filter(i => !dismissedInsights.includes(i.id));
+        const analysis = AIConseiller.analyze(data.transactions, data.goals, data.investments, data.categoryConfig, dateFilter.month, dateFilter.year);
+        return {
+            score: analysis.score,
+            insights: analysis.insights.filter(i => !dismissedInsights.includes(i.id))
+        };
     }, [data.transactions, data.goals, data.investments, dismissedInsights, dateFilter]);
 
     // --- Handlers ---
