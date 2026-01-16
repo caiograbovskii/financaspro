@@ -18,6 +18,8 @@ import { ToastProvider, Celebration, useToast } from './components/SharedUI';
 
 // Importa apenas os módulos ativos
 import { WeeklyCosts, GoalsView, InvestmentPortfolio, SettingsView } from './components/Modules';
+import { AIConseiller } from './services/AIConseiller';
+import { ConfirmDialog } from './components/SharedUI';
 
 // --- Constantes Visuais ---
 const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
@@ -134,6 +136,7 @@ function MainApp() {
     const [currentPage, setCurrentPage] = useState(0);
     const ITEMS_PER_PAGE = 5;
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
 
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
@@ -348,87 +351,11 @@ function MainApp() {
     }, [data.transactions, data.investments]);
 
     // --- AI INSIGHTS ---
+    // --- AI INSIGHTS ---
     const insights = useMemo(() => {
-        const list = [];
-        const currentMonthTxs = filteredTransactions;
-        const today = new Date();
-        today.setHours(0, 0, 0, 0);
-        const threeDaysFromNow = new Date(today);
-        threeDaysFromNow.setDate(today.getDate() + 3);
-
-        // 1. Radar
-        const incomingMoney = data.transactions.filter(t => {
-            const [y, m, d] = t.date.split('-').map(Number);
-            const tDate = new Date(y, m - 1, d);
-            return t.type === 'income' && tDate >= today && tDate <= threeDaysFromNow;
-        });
-
-        if (incomingMoney.length > 0) {
-            const total = incomingMoney.reduce((a, b) => a + b.amount, 0);
-            list.push({
-                id: 'receivable',
-                type: 'info',
-                title: 'Entradas à Vista',
-                message: `Previsão de R$ ${total.toLocaleString('pt-BR', { minimumFractionDigits: 2 })} para os próximos 3 dias.`,
-                icon: Calendar
-            });
-        }
-
-        // 2. Análise de Gastos
-        const expenseCategories = [...new Set(currentMonthTxs.filter(t => t.type === 'expense').map(t => t.category))];
-        let inflationFound = false;
-
-        expenseCategories.forEach(cat => {
-            const currentTotal = currentMonthTxs.filter(t => t.category === cat).reduce((a, b) => a + b.amount, 0);
-            if (currentTotal < 50) return;
-
-            let pastTotal = 0;
-            let monthsCount = 0;
-            for (let i = 1; i <= 3; i++) {
-                const d = new Date(dateFilter.year, dateFilter.month - i, 1);
-                const mStart = d.toISOString().split('T')[0];
-                const mEnd = new Date(d.getFullYear(), d.getMonth() + 1, 0).toISOString().split('T')[0];
-                const mSum = data.transactions
-                    .filter(t => t.category === cat && t.date >= mStart && t.date <= mEnd)
-                    .reduce((a, b) => a + b.amount, 0);
-                if (mSum > 0) { pastTotal += mSum; monthsCount++; }
-            }
-
-            if (monthsCount > 0) {
-                const avg = pastTotal / monthsCount;
-                if (currentTotal > avg * 1.3) {
-                    inflationFound = true;
-                    list.push({
-                        id: `inflation-${cat}-${dateFilter.month}`,
-                        type: 'warning',
-                        title: 'Alerta de Inflação',
-                        message: `Seus gastos com ${cat} estão ${(currentTotal / avg * 100 - 100).toFixed(0)}% acima da média recente.`,
-                        icon: AlertTriangle
-                    });
-                }
-            }
-        });
-
-        if (list.length === 0) {
-            const income = currentMonthTxs.filter(t => t.type === 'income').reduce((a, b) => a + b.amount, 0);
-            const expense = currentMonthTxs.filter(t => t.type === 'expense').reduce((a, b) => a + b.amount, 0);
-            const balance = income - expense;
-
-            if (income > 0 || expense > 0) {
-                list.push({
-                    id: `balance-status-${dateFilter.month}`,
-                    type: balance >= 0 ? 'success' : 'warning',
-                    title: balance >= 0 ? 'Saldo Positivo' : 'Cuidado',
-                    message: balance >= 0
-                        ? `Você está no azul! Sobra de R$ ${balance.toLocaleString()}.`
-                        : `Gastos excederam receitas em R$ ${Math.abs(balance).toLocaleString()}.`,
-                    icon: balance >= 0 ? Trophy : AlertTriangle
-                });
-            }
-        }
-
-        return list.filter(i => !dismissedInsights.includes(i.id));
-    }, [filteredTransactions, data.transactions, data.investments, dismissedInsights, dateFilter]);
+        return AIConseiller.analyze(data.transactions, data.goals, data.investments, data.categoryConfig, dateFilter.month, dateFilter.year)
+            .filter(i => !dismissedInsights.includes(i.id));
+    }, [data.transactions, data.goals, data.investments, dismissedInsights, dateFilter]);
 
     // --- Handlers ---
     const handleUpdateCategories = async (newConfig: CategoryConfig) => {
@@ -564,50 +491,74 @@ function MainApp() {
     };
 
     const deleteTransaction = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir esta transação?')) return;
-        if (isConfigured) {
-            const { error } = await supabase.from('transactions').delete().eq('id', id);
-            if (error) showToast('Erro ao excluir: ' + error.message, 'error');
-            else loadData(session.user.id);
-        } else {
-            setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: 'Excluir Transação',
+            message: 'Tem certeza que deseja remover esta transação? Essa ação é irreversível.',
+            type: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                if (isConfigured) {
+                    const { error } = await supabase.from('transactions').delete().eq('id', id);
+                    if (error) showToast('Erro ao excluir: ' + error.message, 'error');
+                    else loadData(session.user.id);
+                } else {
+                    setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
+                }
+            }
+        });
     };
 
     const handleDeleteInvestment = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir este investimento?')) return;
-        // Atualiza metas vinculadas
-        const affectedGoals = data.goals.filter(g => g.linkedInvestmentIds && g.linkedInvestmentIds.includes(id));
-        const newGoals = data.goals.map(g => {
-            if (g.linkedInvestmentIds && g.linkedInvestmentIds.includes(id)) {
-                const newIds = g.linkedInvestmentIds.filter(iId => iId !== id);
-                const newAmount = calculateLinkedAmount(newIds, data.investments.filter(i => i.id !== id));
-                return { ...g, linkedInvestmentIds: newIds, currentAmount: newAmount };
-            }
-            return g;
-        });
+        setConfirmModal({
+            isOpen: true,
+            title: 'Excluir Investimento',
+            message: 'Atenção: A exclusão desvinculará este investimento de quaisquer metas associadas.',
+            type: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                // Atualiza metas vinculadas
+                const affectedGoals = data.goals.filter(g => g.linkedInvestmentIds && g.linkedInvestmentIds.includes(id));
+                const newGoals = data.goals.map(g => {
+                    if (g.linkedInvestmentIds && g.linkedInvestmentIds.includes(id)) {
+                        const newIds = g.linkedInvestmentIds.filter(iId => iId !== id);
+                        const newAmount = calculateLinkedAmount(newIds, data.investments.filter(i => i.id !== id));
+                        return { ...g, linkedInvestmentIds: newIds, currentAmount: newAmount };
+                    }
+                    return g;
+                });
 
-        if (isConfigured) {
-            for (const goal of affectedGoals) {
-                const newIds = goal.linkedInvestmentIds!.filter(iId => iId !== id);
-                const newAmount = calculateLinkedAmount(newIds, data.investments.filter(i => i.id !== id));
-                await supabase.from('goals').update({ linked_investment_ids: newIds, current_amount: newAmount }).eq('id', goal.id);
+                if (isConfigured) {
+                    for (const goal of affectedGoals) {
+                        const newIds = goal.linkedInvestmentIds!.filter(iId => iId !== id);
+                        const newAmount = calculateLinkedAmount(newIds, data.investments.filter(i => i.id !== id));
+                        await supabase.from('goals').update({ linked_investment_ids: newIds, current_amount: newAmount }).eq('id', goal.id);
+                    }
+                    const { error } = await supabase.from('investments').delete().eq('id', id);
+                    if (error) showToast('Erro ao excluir investimento', 'error'); else loadData(session.user.id);
+                } else {
+                    setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id), goals: newGoals }));
+                }
             }
-            const { error } = await supabase.from('investments').delete().eq('id', id);
-            if (error) showToast('Erro ao excluir investimento', 'error'); else loadData(session.user.id);
-        } else {
-            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id), goals: newGoals }));
-        }
+        });
     };
 
     const handleDeleteGoal = async (id: string) => {
-        if (!confirm('Tem certeza que deseja excluir esta meta?')) return;
-        if (isConfigured) {
-            const { error } = await supabase.from('goals').delete().eq('id', id);
-            if (error) showToast('Erro ao excluir meta', 'error'); else loadData(session.user.id);
-        } else {
-            setData(prev => ({ ...prev, goals: prev.goals.filter(g => g.id !== id) }));
-        }
+        setConfirmModal({
+            isOpen: true,
+            title: 'Excluir Meta',
+            message: 'Tem certeza que deseja excluir esta meta?',
+            type: 'danger',
+            onConfirm: async () => {
+                setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                if (isConfigured) {
+                    const { error } = await supabase.from('goals').delete().eq('id', id);
+                    if (error) showToast('Erro ao excluir meta', 'error'); else loadData(session.user.id);
+                } else {
+                    setData(prev => ({ ...prev, goals: prev.goals.filter(g => g.id !== id) }));
+                }
+            }
+        });
     };
 
     const openNewTransaction = () => { setEditingTransaction(null); setTxModalOpen(true); };
@@ -696,12 +647,12 @@ function MainApp() {
                             {insights.length > 0 && (
                                 <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
                                     {insights.map(item => (
-                                        <div key={item.id} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm relative group animate-fade-in ${item.type === 'warning' ? 'bg-orange-50 border-orange-100' : item.type === 'success' ? 'bg-emerald-50 border-emerald-100' : 'bg-blue-50 border-blue-100'}`}>
-                                            <div className={`p-2 rounded-lg ${item.type === 'warning' ? 'bg-orange-100 text-orange-600' : item.type === 'success' ? 'bg-emerald-100 text-emerald-600' : 'bg-blue-100 text-blue-600'}`}>
+                                        <div key={item.id} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm relative group animate-fade-in ${item.color === 'emerald' ? 'bg-emerald-50 border-emerald-100' : item.color === 'orange' ? 'bg-orange-50 border-orange-100' : item.color === 'rose' ? 'bg-rose-50 border-rose-100' : item.color === 'indigo' ? 'bg-indigo-50 border-indigo-100' : item.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
+                                            <div className={`p-2 rounded-lg ${item.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : item.color === 'orange' ? 'bg-orange-100 text-orange-600' : item.color === 'rose' ? 'bg-rose-100 text-rose-600' : item.color === 'indigo' ? 'bg-indigo-100 text-indigo-600' : item.color === 'purple' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
                                                 <item.icon size={18} />
                                             </div>
                                             <div className="flex-1">
-                                                <h4 className={`text-sm font-bold ${item.type === 'warning' ? 'text-orange-800' : item.type === 'success' ? 'text-emerald-800' : 'text-blue-800'}`}>{item.title}</h4>
+                                                <h4 className={`text-sm font-bold ${item.color === 'emerald' ? 'text-emerald-800' : item.color === 'orange' ? 'text-orange-800' : item.color === 'rose' ? 'text-rose-800' : item.color === 'indigo' ? 'text-indigo-800' : item.color === 'purple' ? 'text-purple-800' : 'text-blue-800'}`}>{item.title}</h4>
                                                 <p className="text-xs text-slate-600 mt-1">{item.message}</p>
                                             </div>
                                             <button onClick={() => setDismissedInsights([...dismissedInsights, item.id])} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition"><X size={14} /></button>
@@ -884,6 +835,7 @@ function MainApp() {
                     </div>
                 </div>
             )}
+            <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
         </div>
     );
 }
