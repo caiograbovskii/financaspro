@@ -138,6 +138,8 @@ function MainApp() {
     const ITEMS_PER_PAGE = 5;
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
     const [refreshSeed, setRefreshSeed] = useState(0);
+    const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
+    const [editingNoteText, setEditingNoteText] = useState('');
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
 
     // Perfil de Leitura (Mentora)
@@ -417,12 +419,14 @@ function MainApp() {
         setData(prev => ({ ...prev, categoryConfig: newConfig }));
 
         if (isConfigured && categoryId) {
-            await supabase.from('categories').update({ config: newConfig }).eq('id', categoryId);
+            const { error } = await supabase.from('categories').update({ config: newConfig }).eq('id', categoryId);
+            if (error) console.error("Erro ao salvar config:", error);
         } else if (isConfigured) {
-            const { data: ins } = await supabase.from('categories').insert({
+            const { data: ins, error } = await supabase.from('categories').insert({
                 user_id: session.user.id,
                 config: newConfig
             }).select().single();
+            if (error) console.error("Erro ao criar config:", error);
             if (ins) setCategoryId(ins.id);
         }
     };
@@ -617,11 +621,42 @@ function MainApp() {
     };
 
     const handleAddNote = async (message: string) => {
-        const newNote = { id: Date.now().toString(), message, date: new Date().toISOString(), author: 'Flávia (Mentora)', type: 'star' as any };
-        const newNotes = [newNote, ...(data.categoryConfig.mentorNotes || [])];
-        const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
-        handleUpdateCategories(newConfig);
-        showToast('Recado enviado para a família!', 'success');
+        try {
+            const newNote = { id: Date.now().toString(), message, date: new Date().toISOString(), author: 'Flávia (Mentora)', type: 'star' as any };
+            const newNotes = [newNote, ...(data.categoryConfig.mentorNotes || [])];
+            const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+
+            // Força atualização local imediata
+            setData(prev => ({ ...prev, categoryConfig: newConfig }));
+
+            // Persiste no backend
+            await handleUpdateCategories(newConfig);
+
+            // Recarrega para garantir sincronia (especialmente se houver RLS issues)
+            await loadData(session.user.id);
+
+            showToast('Recado enviado para a família!', 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Erro ao salvar recado.', 'error');
+        }
+    };
+
+    const handleEditNote = async (id: string, newMessage: string) => {
+        try {
+            const newNotes = (data.categoryConfig.mentorNotes || []).map(n =>
+                n.id === id ? { ...n, message: newMessage, date: new Date().toISOString() } : n
+            );
+            const newConfig = { ...data.categoryConfig, mentorNotes: newNotes };
+
+            await handleUpdateCategories(newConfig);
+            await loadData(session.user.id);
+            setEditingNoteId(null);
+            showToast('Recado atualizado!', 'success');
+        } catch (error) {
+            console.error(error);
+            showToast('Erro ao atualizar recado.', 'error');
+        }
     };
 
     const handleDeleteNote = async (id: string) => {
@@ -816,24 +851,55 @@ function MainApp() {
 
                                     {/* Lista de Recados */}
                                     <div className="space-y-3 relative z-10">
-                                        {data.categoryConfig.mentorNotes?.map((note: any) => (
-                                            <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex gap-3 animate-fade-in hover:shadow-md transition">
-                                                <div className="mt-1 text-orange-400"><MessageSquare size={16} /></div>
-                                                <div className="flex-1">
-                                                    <p className="text-slate-700 text-sm font-medium leading-relaxed">{note.message}</p>
-                                                    <p className="text-[10px] text-slate-400 mt-2 uppercase font-bold flex items-center gap-1">
-                                                        <span>{new Date(note.date).toLocaleDateString('pt-BR')}</span>
-                                                        <span>•</span>
-                                                        <span>{note.author}</span>
-                                                    </p>
+                                        {data.categoryConfig.mentorNotes && data.categoryConfig.mentorNotes.length > 0 ? (
+                                            data.categoryConfig.mentorNotes.map((note: any) => (
+                                                <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex items-start gap-3">
+                                                    <div className="mt-1 text-orange-400">
+                                                        <MessageSquare size={16} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        {editingNoteId === note.id ? (
+                                                            <div className="flex gap-2 w-full animate-fade-in">
+                                                                <input
+                                                                    type="text"
+                                                                    value={editingNoteText}
+                                                                    onChange={e => setEditingNoteText(e.target.value)}
+                                                                    className="flex-1 p-2 border border-indigo-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-indigo-500"
+                                                                    autoFocus
+                                                                />
+                                                                <button onClick={() => handleEditNote(note.id, editingNoteText)} className="text-white bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700 transition" title="Salvar">
+                                                                    <Send size={14} />
+                                                                </button>
+                                                                <button onClick={() => setEditingNoteId(null)} className="text-slate-500 p-2 hover:bg-slate-100 rounded-lg transition" title="Cancelar">
+                                                                    <X size={14} />
+                                                                </button>
+                                                            </div>
+                                                        ) : (
+                                                            <>
+                                                                <p className="text-slate-700 font-medium text-sm md:text-base mb-1">"{note.message}"</p>
+                                                                <div className="flex items-center justify-between">
+                                                                    <div className="flex items-center gap-2">
+                                                                        <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full">{note.author}</span>
+                                                                        <span className="text-xs text-slate-400">{formatDate(note.date.split('T')[0])}</span>
+                                                                    </div>
+                                                                    {isReadOnly && (
+                                                                        <div className="flex gap-1">
+                                                                            <button onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.message); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
+                                                                                <Edit2 size={14} />
+                                                                            </button>
+                                                                            <button onClick={() => handleDeleteNote(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Excluir">
+                                                                                <Trash2 size={14} />
+                                                                            </button>
+                                                                        </div>
+                                                                    )}
+                                                                </div>
+                                                            </>
+                                                        )}
+                                                    </div>
                                                 </div>
-                                                {session?.user?.email === 'flavia@mentora.com' && (
-                                                    <button onClick={() => handleDeleteNote(note.id)} className="text-slate-300 hover:text-rose-500 transition p-2"><Trash2 size={14} /></button>
-                                                )}
-                                            </div>
-                                        ))}
-                                        {(!data.categoryConfig.mentorNotes || data.categoryConfig.mentorNotes.length === 0) && (
-                                            <p className="text-center text-slate-400 text-sm italic py-4 bg-white/50 rounded-xl border border-dashed border-orange-100">Nenhum recado fixado no momento.</p>
+                                            ))
+                                        ) : (
+                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado no momento.</p>
                                         )}
                                     </div>
                                 </div>
