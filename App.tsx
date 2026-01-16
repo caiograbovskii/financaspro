@@ -740,10 +740,12 @@ function MainApp() {
             <main className="flex-1 flex flex-col overflow-hidden relative w-full">
                 <header className="h-16 md:h-20 bg-white border-b border-slate-200 flex justify-between items-center px-4 md:px-8 shrink-0">
                     <div className="flex flex-col">
-                        <div className='flex items-baseline gap-2'>
-                            <h1 className="text-xl md:text-2xl font-bold text-slate-800 capitalize">{activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}</h1>
+                        <div className='flex flex-col md:flex-row md:items-baseline md:gap-2'>
+                            <h1 className="text-lg md:text-2xl font-bold text-slate-800 capitalize truncate max-w-[150px] md:max-w-none">
+                                {activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}
+                            </h1>
                             {activeModule === 'dashboard' && session?.user?.email && (
-                                <span className="text-lg font-medium text-slate-500">
+                                <span className="text-xs md:text-lg font-medium text-slate-500">
                                     {session.user.email === 'caio@casa.com' ? 'Olá Caio' :
                                         session.user.email === 'carla@casa.com' ? 'Olá Carla' :
                                             session.user.email === 'flavia@mentora.com' ? 'Olá Flávia' : ''}
@@ -758,9 +760,9 @@ function MainApp() {
                             </button>
                         )}
                         {activeModule !== 'settings' && (
-                            <div className="flex items-center gap-2 md:gap-4 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                            <div className="flex items-center gap-1 md:gap-4 bg-slate-50 p-1 rounded-lg border border-slate-200">
                                 <button onClick={() => setDateFilter(p => { const d = new Date(p.year, p.month - 1); return { month: d.getMonth(), year: d.getFullYear() }; })} className="p-1 hover:bg-white rounded"><ChevronLeft size={16} /></button>
-                                <div className="w-24 md:w-32 text-center font-bold text-slate-700 text-xs md:text-sm">{MONTHS[dateFilter.month]} {dateFilter.year}</div>
+                                <div className="w-20 md:w-32 text-center font-bold text-slate-700 text-xs md:text-sm whitespace-nowrap">{MONTHS[dateFilter.month].substring(0, 3)} {dateFilter.year}</div>
                                 <button onClick={() => setDateFilter(p => { const d = new Date(p.year, p.month + 1); return { month: d.getMonth(), year: d.getFullYear() }; })} className="p-1 hover:bg-white rounded"><ChevronRight size={16} /></button>
                             </div>
                         )}
@@ -1108,8 +1110,8 @@ function MainApp() {
             </div>
 
             {txModalOpen && (
-                <div className="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center backdrop-blur-sm" onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }}>
-                    <div className="bg-white md:rounded-2xl rounded-t-2xl w-full md:max-w-lg p-6 shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto relative w-[95%] md:w-full mb-4 md:mb-0 mx-auto" onClick={e => e.stopPropagation()}>
+                <div className="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center backdrop-blur-sm p-0 md:p-4" onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }}>
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg p-6 shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto relative mb-0 md:mb-0 mx-auto" onClick={e => e.stopPropagation()}>
                         <TransactionFormModal editingTransaction={editingTransaction} data={data} handleSaveTransaction={handleSaveTransaction} setTxModalOpen={setTxModalOpen} setEditingTransaction={setEditingTransaction} onDelete={deleteTransaction} />
                     </div>
                 </div>

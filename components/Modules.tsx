@@ -236,8 +236,8 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
             </div>
 
             {isAdding && !readOnly && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setIsAdding(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl relative w-full max-w-md p-8 animate-fade-in-up flex flex-col max-h-[90vh]" onClick={(e) => e!.stopPropagation()}>
+                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4" onClick={() => setIsAdding(false)}>
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl relative w-full md:max-w-md p-8 animate-fade-in-up flex flex-col max-h-[90vh]" onClick={(e) => e!.stopPropagation()}>
                         <div className="overflow-y-auto custom-scroll pr-2">
                             <button onClick={() => setIsAdding(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
                             <h3 className="font-bold text-slate-800 mb-6 text-xl text-center">{editingGoal.id ? 'Editar Meta' : 'Nova Meta'}</h3>
@@ -487,8 +487,8 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 
             {/* Modal Novo/Editar Investimento */}
             {showForm && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/40 backdrop-blur-sm" onClick={() => setShowForm(false)}>
-                    <div className="bg-white rounded-2xl shadow-2xl relative w-full max-w-md p-6 animate-fade-in-up flex flex-col max-h-[90vh]" onClick={(e) => e!.stopPropagation()}>
+                <div className="fixed inset-0 z-[100] flex items-end md:items-center justify-center bg-black/60 backdrop-blur-sm p-0 md:p-4" onClick={() => setShowForm(false)}>
+                    <div className="bg-white rounded-t-2xl md:rounded-2xl shadow-2xl relative w-full md:max-w-md p-6 animate-fade-in-up flex flex-col max-h-[90vh]" onClick={(e) => e!.stopPropagation()}>
                         <button onClick={() => setShowForm(false)} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500"><X size={20} /></button>
                         <h3 className="font-bold text-slate-800 mb-4 text-lg">{editingInv.id ? 'Editar Ativo' : 'Novo Ativo'}</h3>
                         <div className="overflow-y-auto custom-scroll pr-2 space-y-4">
