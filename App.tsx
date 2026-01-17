@@ -356,21 +356,27 @@ function MainApp() {
     }, [data.transactions, dateFilter]);
 
     const kpiData = useMemo(() => {
-        const income = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
-        const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
+        const income = filteredTransactions
+            .filter(t => t.type === 'income')
+            .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-        // CORREÇÃO: Calcular fluxo de caixa de saída para investimentos no período
+        const expense = filteredTransactions
+            .filter(t => t.type === 'expense')
+            .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+        // CORREÇÃO: Calcular fluxo de saída para investimentos (Dinheiro que saiu da conta)
+        // Lógica: Soma de todos os Aportes (Histórico > 0) + Aporte Inicial (se não estiver no historico)
         const investmentOutflow = data.investments.reduce((sum, inv) => {
-            // 1. Histórico no período
+            // 1. Histórico no período (APENAS APORTES POSITIVOS)
             const historySum = (inv.history || []).reduce((hSum, h) => {
                 const parts = h.date.split('-');
                 const hYear = parseInt(parts[0]);
                 const hMonth = parseInt(parts[1]) - 1;
-                // Considera apenas Aportes (positivos) para o fluxo de saída. Resgates geram Entrada via Transação.
-                return (hMonth === dateFilter.month && hYear === dateFilter.year && h.amount > 0) ? hSum + h.amount : hSum;
+                // Ignora resgates (-). O resgate vira uma transação de Receita.
+                return (hMonth === dateFilter.month && hYear === dateFilter.year && h.amount > 0) ? hSum + Number(h.amount) : hSum;
             }, 0);
 
-            // 2. Compra inicial no período (Se purchaseDate for do mês filtrado)
+            // 2. Aporte Inicial (Saldo Inicial não registrado no histórico)
             let initialOutflow = 0;
             if (inv.purchaseDate) {
                 const pParts = inv.purchaseDate.split('T')[0].split('-');
@@ -378,10 +384,9 @@ function MainApp() {
                 const pMonth = parseInt(pParts[1]) - 1;
 
                 if (pMonth === dateFilter.month && pYear === dateFilter.year) {
-                    // Soma apenas aportes (positivos) para calcular o que foi 'investido' versus 'registrado no histórico'
-                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + h.amount, 0);
-                    // Se Total Investido > Soma dos Aportes no Histórico, a diferença é o aporte inicial
-                    const initial = (inv.totalInvested || 0) - totalHistoryInvested;
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + Number(h.amount), 0);
+                    // Se TotalInvested > Soma dos Aportes, a diferença é o inicial
+                    const initial = Number(inv.totalInvested || 0) - totalHistoryInvested;
                     if (initial > 0) initialOutflow = initial;
                 }
             }
@@ -389,14 +394,17 @@ function MainApp() {
             return sum + historySum + initialOutflow;
         }, 0);
 
-        const totalInvestments = data.investments.reduce((sum, inv) => sum + (inv.currentValue || 0), 0);
+        const totalInvestedCurrent = data.investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0);
         const totalUnlinkedGoals = data.goals
             .filter(g => (!g.linkedInvestmentIds || g.linkedInvestmentIds.length === 0))
-            .reduce((sum, g) => sum + (g.currentAmount || 0), 0);
+            .reduce((sum, g) => sum + Number(g.currentAmount || 0), 0);
 
         return {
-            income, expense, balance: income - expense - investmentOutflow,
-            invested: totalInvestments + totalUnlinkedGoals
+            income,
+            expense,
+            // Balance = Receita - Despesa - Dinheiro Enviado para Investimentos
+            balance: income - expense - investmentOutflow,
+            invested: totalInvestedCurrent + totalUnlinkedGoals
         };
     }, [filteredTransactions, data.investments, data.goals]);
 
@@ -413,19 +421,21 @@ function MainApp() {
             const eom = new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().split('T')[0];
             const label = MONTHS[date.getMonth()].substring(0, 3);
 
-            const accIncome = data.transactions.filter(t => t.type === 'income' && t.date <= eom).reduce((a, b) => a + b.amount, 0);
-            const accExpense = data.transactions.filter(t => t.type === 'expense' && t.date <= eom).reduce((a, b) => a + b.amount, 0);
+            const accIncome = data.transactions
+                .filter(t => t.type === 'income' && t.date <= eom)
+                .reduce((a, b) => a + Number(b.amount || 0), 0);
 
-            // CORREÇÃO: Calcular fluxo acumulado para investimentos até a data (SOMENTE APORTES)
+            const accExpense = data.transactions
+                .filter(t => t.type === 'expense' && t.date <= eom)
+                .reduce((a, b) => a + Number(b.amount || 0), 0);
+
             const accInvestmentOutflow = data.investments.reduce((sum, inv) => {
                 let initial = 0;
                 if (inv.purchaseDate && inv.purchaseDate <= eom) {
-                    // Ignora resgates (negativos) para não distorcer o cálculo do aporte inicial não registrado
-                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((hSum, h) => hSum + h.amount, 0);
-                    initial = Math.max(0, (inv.totalInvested || 0) - totalHistoryInvested);
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((hSum, h) => hSum + Number(h.amount), 0);
+                    initial = Math.max(0, Number(inv.totalInvested || 0) - totalHistoryInvested);
                 }
-                // Considerar apenas aportes positivos no histórico acumulado para deduzir do caixa corretamente
-                const hist = (inv.history || []).filter(h => h.date <= eom && h.amount > 0).reduce((hSum, h) => hSum + h.amount, 0);
+                const hist = (inv.history || []).filter(h => h.date <= eom && h.amount > 0).reduce((hSum, h) => hSum + Number(h.amount), 0);
                 return sum + initial + hist;
             }, 0);
 
@@ -433,14 +443,14 @@ function MainApp() {
 
             const invested = data.investments
                 .filter(i => !i.purchaseDate || i.purchaseDate <= eom)
-                .reduce((a, b) => a + (b.totalInvested || 0), 0);
+                .reduce((a, b) => a + Number(b.currentValue || 0), 0); // Use currentValue for net worth
 
             return {
                 name: label,
                 date: eom,
                 Caixa: balance,
                 Investimentos: invested,
-                Total: balance + invested // Total Patrimônio = Caixa + Investimentos
+                Total: balance + invested
             };
         });
     }, [data.transactions, data.investments]);
@@ -620,738 +630,754 @@ function MainApp() {
 
     // NOVO: Manipulador de Resgate (Gera transação de receita)
     const handleInvestmentResgate = async (invId: string, amount: number) => {
-        const inv = data.investments.find(i => i.id === invId);
-        if (!inv) return;
+        const handleInvestmentResgate = async (id: string, amount: number) => {
+            const inv = data.investments.find(i => i.id === id);
+            if (!inv) return;
+            const now = new Date();
+            const localDate = now.toLocaleDateString('pt-BR').split('/').reverse().join('-'); // YYYY-MM-DD
 
-        // 1. Atualizar Investimento (Reduzir valor + Histórico negativo)
-        const now = new Date().toISOString();
-        const newHistoryItem = { id: Date.now().toString(), date: now.split('T')[0], amount: -amount, description: 'Resgate', userId: session.user.id };
-        const updatedInv = { ...inv, history: [...(inv.history || []), newHistoryItem], currentValue: Math.max(0, (inv.currentValue || 0) - amount) };
+            const finalAmount = Number(amount);
 
-        // Chamada otimista e persistência do investimento
-        handleEditInvestment(updatedInv);
+            // 1. Atualizar Investimento (Reduzir apenas CurrentValue, manter TotalInvested para fins de custo)
+            const updatedInv = {
+                ...inv,
+                currentValue: Math.max(0, Number(inv.currentValue) - finalAmount)
+            };
 
-        // 2. Gerar Transação de Receita
-        const localDate = new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'); // YYYY-MM-DD
-        const newTx: Transaction = {
-            id: Date.now().toString() + '_resgate',
-            user_id: session.user.id,
-            title: `Resgate: ${inv.ticker}`,
-            amount: amount,
-            type: 'income',
-            category: 'Resgate de Investimento',
-            date: localDate,
-            paymentMethod: 'pix', // Default
-            description: 'Resgate automático gerado pelo sistema'
+            handleEditInvestment(updatedInv);
+
+            // 2. Gerar Transação de Receita
+            const newTx: Transaction = {
+                id: Date.now().toString() + '_resgate',
+                user_id: session.user.id,
+                title: `Resgate: ${inv.ticker}`,
+                amount: finalAmount,
+                type: 'income',
+                category: 'Resgate de Investimento',
+                date: localDate,
+                paymentMethod: 'pix', // Default
+                description: 'Resgate automático gerado pelo sistema'
+            };
+
+            setData(prev => ({
+                ...prev,
+                investments: prev.investments.map(i => i.id === id ? updatedInv : i),
+                transactions: [...prev.transactions, newTx]
+            }));
+
+            showToast(`Resgate de R$ ${finalAmount.toFixed(2)} realizado!`, "success");
+
+            if (isConfigured) {
+                await supabase.from('transactions').insert({
+                    user_id: session.user.id,
+                    title: newTx.title,
+                    amount: newTx.amount,
+                    type: newTx.type,
+                    category: newTx.category,
+                    date: newTx.date,
+                    payment_method: newTx.paymentMethod,
+                    description: newTx.description
+                });
+            }
         };
 
-        if (isConfigured) {
-            await supabase.from('transactions').insert(newTx);
-            loadData(session.user.id);
-        } else {
-            setData(prev => ({ ...prev, transactions: [newTx, ...prev.transactions] }));
-        }
+        const handleSaveTransaction = async (tx: Partial<Transaction>) => {
+            const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description };
 
-        showToast(`Resgate de R$ ${amount.toFixed(2)} realizado!`, 'success');
-    };
-
-    const handleSaveTransaction = async (tx: Partial<Transaction>) => {
-        const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description };
-
-        if (isConfigured) {
-            if (editingTransaction) {
-                await supabase.from('transactions').update(txData).eq('id', editingTransaction.id);
-            } else {
-                await supabase.from('transactions').insert({ ...txData, user_id: session.user.id });
-            }
-            setTxModalOpen(false);
-            setEditingTransaction(null);
-            loadData(session.user.id);
-        } else {
-            const id = editingTransaction?.id || Date.now().toString();
-            const newTx = { ...txData, id, user_id: session.user.id } as Transaction;
-
-            setData(prev => {
+            if (isConfigured) {
                 if (editingTransaction) {
-                    return { ...prev, transactions: prev.transactions.map(t => t.id === id ? newTx : t) };
+                    await supabase.from('transactions').update(txData).eq('id', editingTransaction.id);
                 } else {
-                    return { ...prev, transactions: [newTx, ...prev.transactions] };
+                    await supabase.from('transactions').insert({ ...txData, user_id: session.user.id });
                 }
-            });
-            setTxModalOpen(false);
-            setEditingTransaction(null);
-        }
-    };
+                setTxModalOpen(false);
+                setEditingTransaction(null);
+                loadData(session.user.id);
+            } else {
+                const id = editingTransaction?.id || Date.now().toString();
+                const newTx = { ...txData, id, user_id: session.user.id } as Transaction;
 
-    const deleteTransaction = async (id: string) => {
-        setConfirmModal({
-            isOpen: true,
-            title: 'Excluir Transação',
-            message: 'Tem certeza que deseja remover esta transação? Essa ação é irreversível.',
-            type: 'danger',
-            onConfirm: async () => {
-                setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                if (isConfigured) {
-                    const { error } = await supabase.from('transactions').delete().eq('id', id);
-                    if (error) showToast('Erro ao excluir: ' + error.message, 'error');
-                    else loadData(session.user.id);
-                } else {
-                    setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
-                }
+                setData(prev => {
+                    if (editingTransaction) {
+                        return { ...prev, transactions: prev.transactions.map(t => t.id === id ? newTx : t) };
+                    } else {
+                        return { ...prev, transactions: [newTx, ...prev.transactions] };
+                    }
+                });
+                setTxModalOpen(false);
+                setEditingTransaction(null);
             }
-        });
-    };
+        };
 
-    const handleDeleteInvestment = (id: string) => {
-        const inv = data.investments.find(i => i.id === id);
-        if (!inv) return;
-
-        if (inv.currentValue > 0) {
-            setSmartDeleteModal({ isOpen: true, inv });
-        } else {
+        const deleteTransaction = async (id: string) => {
             setConfirmModal({
                 isOpen: true,
-                title: 'Excluir Investimento',
-                message: 'Tem certeza que deseja remover este investimento permanentemente?',
+                title: 'Excluir Transação',
+                message: 'Tem certeza que deseja remover esta transação? Essa ação é irreversível.',
                 type: 'danger',
                 onConfirm: async () => {
                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
                     if (isConfigured) {
-                        await supabase.from('investments').delete().eq('id', id);
-                        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                        const { error } = await supabase.from('transactions').delete().eq('id', id);
+                        if (error) showToast('Erro ao excluir: ' + error.message, 'error');
+                        else loadData(session.user.id);
                     } else {
-                        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                        setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
                     }
                 }
             });
-        }
-    };
+        };
 
-    const processSmartDelete = async (action: 'liquidate' | 'delete') => {
-        if (!smartDeleteModal.inv) return;
-        const { id, currentValue } = smartDeleteModal.inv;
+        const handleDeleteInvestment = (id: string) => {
+            const inv = data.investments.find(i => i.id === id);
+            if (!inv) return;
 
-        if (action === 'liquidate') {
-            await handleInvestmentResgate(id, currentValue);
-        }
-
-        // Proceed to delete
-        if (isConfigured) {
-            await supabase.from('investments').delete().eq('id', id);
-            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-        } else {
-            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-        }
-        setSmartDeleteModal({ isOpen: false, inv: null });
-    };
-
-
-    const handleDeleteGoal = async (id: string) => {
-        setConfirmModal({
-            isOpen: true,
-            title: 'Excluir Meta',
-            message: 'Tem certeza que deseja excluir esta meta?',
-            type: 'danger',
-            onConfirm: async () => {
-                setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                if (isConfigured) {
-                    const { error } = await supabase.from('goals').delete().eq('id', id);
-                    if (error) showToast('Erro ao excluir meta', 'error'); else loadData(session.user.id);
-                } else {
-                    setData(prev => ({ ...prev, goals: prev.goals.filter(g => g.id !== id) }));
-                }
+            if (inv.currentValue > 0) {
+                setSmartDeleteModal({ isOpen: true, inv });
+            } else {
+                setConfirmModal({
+                    isOpen: true,
+                    title: 'Excluir Investimento',
+                    message: 'Tem certeza que deseja remover este investimento permanentemente?',
+                    type: 'danger',
+                    onConfirm: async () => {
+                        setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                        if (isConfigured) {
+                            await supabase.from('investments').delete().eq('id', id);
+                            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                        } else {
+                            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                        }
+                    }
+                });
             }
-        });
-    };
+        };
 
-    const handleAddNote = async (message: string) => {
-        try {
-            console.log('[DEBUG_FLAVIA] Inserindo nota na tabela...');
-            const { error } = await supabase.from('mentor_notes').insert({
-                message,
-                author_name: 'Flávia (Mentora)',
-                author_email: session.user.email
+        const processSmartDelete = async (action: 'liquidate' | 'delete') => {
+            if (!smartDeleteModal.inv) return;
+            const { id, currentValue } = smartDeleteModal.inv;
+
+            if (action === 'liquidate') {
+                await handleInvestmentResgate(id, currentValue);
+            }
+
+            // Proceed to delete
+            if (isConfigured) {
+                await supabase.from('investments').delete().eq('id', id);
+                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+            } else {
+                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+            }
+            setSmartDeleteModal({ isOpen: false, inv: null });
+        };
+
+
+        const handleDeleteGoal = async (id: string) => {
+            setConfirmModal({
+                isOpen: true,
+                title: 'Excluir Meta',
+                message: 'Tem certeza que deseja excluir esta meta?',
+                type: 'danger',
+                onConfirm: async () => {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    if (isConfigured) {
+                        const { error } = await supabase.from('goals').delete().eq('id', id);
+                        if (error) showToast('Erro ao excluir meta', 'error'); else loadData(session.user.id);
+                    } else {
+                        setData(prev => ({ ...prev, goals: prev.goals.filter(g => g.id !== id) }));
+                    }
+                }
             });
+        };
 
-            if (error) throw error;
+        const handleAddNote = async (message: string) => {
+            try {
+                console.log('[DEBUG_FLAVIA] Inserindo nota na tabela...');
+                const { error } = await supabase.from('mentor_notes').insert({
+                    message,
+                    author_name: 'Flávia (Mentora)',
+                    author_email: session.user.email
+                });
 
-            await loadData(session.user.id);
-            showToast('Recado enviado para a família!', 'success');
-        } catch (error: any) {
-            console.error('[DEBUG_FLAVIA] Erro ao inserir:', error);
-            showToast('Erro ao salvar: ' + (error.message || 'Desconhecido'), 'error');
-        }
-    };
+                if (error) throw error;
 
-    const handleEditNote = async (id: string, newMessage: string) => {
-        try {
-            console.log('[DEBUG_FLAVIA] Editando ID:', id);
-            const { error } = await supabase.from('mentor_notes').update({
-                message: newMessage
-            }).eq('id', id);
+                await loadData(session.user.id);
+                showToast('Recado enviado para a família!', 'success');
+            } catch (error: any) {
+                console.error('[DEBUG_FLAVIA] Erro ao inserir:', error);
+                showToast('Erro ao salvar: ' + (error.message || 'Desconhecido'), 'error');
+            }
+        };
 
-            if (error) throw error;
+        const handleEditNote = async (id: string, newMessage: string) => {
+            try {
+                console.log('[DEBUG_FLAVIA] Editando ID:', id);
+                const { error } = await supabase.from('mentor_notes').update({
+                    message: newMessage
+                }).eq('id', id);
 
-            await loadData(session.user.id);
-            setEditingNoteId(null);
-            showToast('Recado atualizado!', 'success');
-        } catch (error: any) {
-            console.error('[DEBUG_FLAVIA] Erro ao editar:', error);
-            showToast('Erro ao atualizar: ' + (error.message || 'Desconhecido'), 'error');
-        }
-    };
+                if (error) throw error;
 
-    const handleDeleteNote = async (id: string) => {
-        try {
-            console.log('[DEBUG_FLAVIA] Deletando ID:', id);
-            const { error } = await supabase.from('mentor_notes').delete().eq('id', id);
+                await loadData(session.user.id);
+                setEditingNoteId(null);
+                showToast('Recado atualizado!', 'success');
+            } catch (error: any) {
+                console.error('[DEBUG_FLAVIA] Erro ao editar:', error);
+                showToast('Erro ao atualizar: ' + (error.message || 'Desconhecido'), 'error');
+            }
+        };
 
-            if (error) throw error;
+        const handleDeleteNote = async (id: string) => {
+            try {
+                console.log('[DEBUG_FLAVIA] Deletando ID:', id);
+                const { error } = await supabase.from('mentor_notes').delete().eq('id', id);
 
-            await loadData(session.user.id);
-            showToast('Recado removido.', 'success');
-        } catch (e: any) {
-            console.error('[DEBUG_FLAVIA] Erro ao deletar:', e);
-            showToast('Erro ao remover: ' + (e.message || 'Desconhecido'), 'error');
-        }
-    };
+                if (error) throw error;
 
-    const openNewTransaction = () => { setEditingTransaction(null); setTxModalOpen(true); };
-    const openEditTransaction = (t: Transaction) => { setEditingTransaction(t); setTxModalOpen(true); };
+                await loadData(session.user.id);
+                showToast('Recado removido.', 'success');
+            } catch (e: any) {
+                console.error('[DEBUG_FLAVIA] Erro ao deletar:', e);
+                showToast('Erro ao remover: ' + (e.message || 'Desconhecido'), 'error');
+            }
+        };
 
-    const handleLogout = () => { setSession(null); supabase.auth.signOut(); };
+        const openNewTransaction = () => { setEditingTransaction(null); setTxModalOpen(true); };
+        const openEditTransaction = (t: Transaction) => { setEditingTransaction(t); setTxModalOpen(true); };
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-500">Carregando FinançasPRO...</div>;
+        const handleLogout = () => { setSession(null); supabase.auth.signOut(); };
 
-    if (!session) return <LoginScreen />;
+        if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-500">Carregando FinançasPRO...</div>;
 
-    const paginatedTransactions = filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
-    const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
+        if (!session) return <LoginScreen />;
 
-    // Mapeamento dos itens de navegação para reuso (Sidebar e Bottom Nav)
-    const navItems = [
-        { id: 'dashboard', icon: LayoutDashboard, label: 'Visão Geral' },
-        { id: 'weekly', icon: CalendarRange, label: 'Custos Semanais' },
-        { id: 'goals', icon: Target, label: 'Metas', c: 'bg-amber-50 text-amber-700' },
-        { id: 'investments', icon: Briefcase, label: 'Investimentos', c: 'bg-teal-50 text-teal-700' },
-        { id: 'settings', icon: Settings, label: 'Ajustes' }
-    ];
+        const paginatedTransactions = filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
+        const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
 
-    return (
-        <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
+        // Mapeamento dos itens de navegação para reuso (Sidebar e Bottom Nav)
+        const navItems = [
+            { id: 'dashboard', icon: LayoutDashboard, label: 'Visão Geral' },
+            { id: 'weekly', icon: CalendarRange, label: 'Custos Semanais' },
+            { id: 'goals', icon: Target, label: 'Metas', c: 'bg-amber-50 text-amber-700' },
+            { id: 'investments', icon: Briefcase, label: 'Investimentos', c: 'bg-teal-50 text-teal-700' },
+            { id: 'settings', icon: Settings, label: 'Ajustes' }
+        ];
 
-            {/* SIDEBAR DESKTOP - Oculta no mobile (hidden md:flex) */}
-            <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col py-6 z-20 shadow-sm">
-                <div className="px-6 mb-8 w-full">
-                    <div className="flex items-center gap-3 mb-1"><div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">FP</div><span className="text-xl font-bold">FinançasPRO</span></div>
-                    <p className="text-xs text-slate-400 pl-11">Família Grabovskii</p>
-                </div>
-                <nav className="flex-1 px-3 space-y-2">
-                    {navItems.filter(i => i.id !== 'settings').map(item => (
-                        <button key={item.id} onClick={() => setActiveModule(item.id as any)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${activeModule === item.id ? (item.c || 'bg-indigo-50 text-indigo-700 font-semibold') : 'text-slate-500 hover:bg-slate-50'}`}>
-                            <item.icon size={20} /><span className="text-sm">{item.label}</span>
-                        </button>
-                    ))}
-                </nav>
-                <div className="px-3 mt-auto space-y-2">
-                    <button onClick={() => setActiveModule('settings')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl ${activeModule === 'settings' ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}><Settings size={20} /><span className="text-sm">Configurações</span></button>
-                    <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-rose-500 hover:bg-rose-50"><LogOut size={20} /><span className="text-sm">Sair</span></button>
-                </div>
-            </aside>
+        return (
+            <div className="flex h-screen bg-slate-50 font-sans text-slate-900 overflow-hidden">
 
-            <main className="flex-1 flex flex-col overflow-hidden relative w-full">
-                <header className="h-16 md:h-20 bg-white border-b border-slate-200 flex justify-between items-center px-4 md:px-8 shrink-0">
-                    <div className="flex flex-col">
-                        <div className='flex flex-col md:flex-row md:items-baseline md:gap-2'>
-                            <h1 className="text-lg md:text-2xl font-bold text-slate-800 capitalize truncate max-w-[150px] md:max-w-none">
-                                {activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}
-                            </h1>
-                            {activeModule === 'dashboard' && session?.user?.email && (
-                                <span className="text-xs md:text-lg font-medium text-slate-500">
-                                    {session.user.email === 'caio@casa.com' ? 'Olá Caio' :
-                                        session.user.email === 'carla@casa.com' ? 'Olá Carla' :
-                                            session.user.email === 'flavia@mentora.com' ? 'Olá Flávia' : ''}
-                                </span>
+                {/* SIDEBAR DESKTOP - Oculta no mobile (hidden md:flex) */}
+                <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col py-6 z-20 shadow-sm">
+                    <div className="px-6 mb-8 w-full">
+                        <div className="flex items-center gap-3 mb-1"><div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">FP</div><span className="text-xl font-bold">FinançasPRO</span></div>
+                        <p className="text-xs text-slate-400 pl-11">Família Grabovskii</p>
+                    </div>
+                    <nav className="flex-1 px-3 space-y-2">
+                        {navItems.filter(i => i.id !== 'settings').map(item => (
+                            <button key={item.id} onClick={() => setActiveModule(item.id as any)} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl transition-all ${activeModule === item.id ? (item.c || 'bg-indigo-50 text-indigo-700 font-semibold') : 'text-slate-500 hover:bg-slate-50'}`}>
+                                <item.icon size={20} /><span className="text-sm">{item.label}</span>
+                            </button>
+                        ))}
+                    </nav>
+                    <div className="px-3 mt-auto space-y-2">
+                        <button onClick={() => setActiveModule('settings')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl ${activeModule === 'settings' ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}><Settings size={20} /><span className="text-sm">Configurações</span></button>
+                        <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-rose-500 hover:bg-rose-50"><LogOut size={20} /><span className="text-sm">Sair</span></button>
+                    </div>
+                </aside>
+
+                <main className="flex-1 flex flex-col overflow-hidden relative w-full">
+                    <header className="h-16 md:h-20 bg-white border-b border-slate-200 flex justify-between items-center px-4 md:px-8 shrink-0">
+                        <div className="flex flex-col">
+                            <div className='flex flex-col md:flex-row md:items-baseline md:gap-2'>
+                                <h1 className="text-lg md:text-2xl font-bold text-slate-800 capitalize truncate max-w-[150px] md:max-w-none">
+                                    {activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}
+                                </h1>
+                                {activeModule === 'dashboard' && session?.user?.email && (
+                                    <span className="text-xs md:text-lg font-medium text-slate-500">
+                                        {session.user.email === 'caio@casa.com' ? 'Olá Caio' :
+                                            session.user.email === 'carla@casa.com' ? 'Olá Carla' :
+                                                session.user.email === 'flavia@mentora.com' ? 'Olá Flávia' : ''}
+                                    </span>
+                                )}
+                            </div>
+                        </div>
+                        <div className="flex gap-2 md:gap-4">
+                            {activeModule === 'dashboard' && !isReadOnly && (
+                                <button onClick={openNewTransaction} className="bg-slate-900 text-white px-3 md:px-5 py-2 rounded-xl flex items-center gap-2 shadow-lg text-sm font-medium">
+                                    <Plus size={18} /> <span className="hidden sm:inline">Nova Transação</span>
+                                </button>
+                            )}
+                            {activeModule !== 'settings' && (
+                                <div className="flex items-center gap-1 md:gap-4 bg-slate-50 p-1 rounded-lg border border-slate-200">
+                                    <button onClick={() => setDateFilter(p => { const d = new Date(p.year, p.month - 1); return { month: d.getMonth(), year: d.getFullYear() }; })} className="p-1 hover:bg-white rounded"><ChevronLeft size={16} /></button>
+                                    <div className="w-20 md:w-32 text-center font-bold text-slate-700 text-xs md:text-sm whitespace-nowrap">{MONTHS[dateFilter.month].substring(0, 3)} {dateFilter.year}</div>
+                                    <button onClick={() => setDateFilter(p => { const d = new Date(p.year, p.month + 1); return { month: d.getMonth(), year: d.getFullYear() }; })} className="p-1 hover:bg-white rounded"><ChevronRight size={16} /></button>
+                                </div>
                             )}
                         </div>
-                    </div>
-                    <div className="flex gap-2 md:gap-4">
-                        {activeModule === 'dashboard' && !isReadOnly && (
-                            <button onClick={openNewTransaction} className="bg-slate-900 text-white px-3 md:px-5 py-2 rounded-xl flex items-center gap-2 shadow-lg text-sm font-medium">
-                                <Plus size={18} /> <span className="hidden sm:inline">Nova Transação</span>
-                            </button>
-                        )}
-                        {activeModule !== 'settings' && (
-                            <div className="flex items-center gap-1 md:gap-4 bg-slate-50 p-1 rounded-lg border border-slate-200">
-                                <button onClick={() => setDateFilter(p => { const d = new Date(p.year, p.month - 1); return { month: d.getMonth(), year: d.getFullYear() }; })} className="p-1 hover:bg-white rounded"><ChevronLeft size={16} /></button>
-                                <div className="w-20 md:w-32 text-center font-bold text-slate-700 text-xs md:text-sm whitespace-nowrap">{MONTHS[dateFilter.month].substring(0, 3)} {dateFilter.year}</div>
-                                <button onClick={() => setDateFilter(p => { const d = new Date(p.year, p.month + 1); return { month: d.getMonth(), year: d.getFullYear() }; })} className="p-1 hover:bg-white rounded"><ChevronRight size={16} /></button>
-                            </div>
-                        )}
-                    </div>
-                </header>
+                    </header>
 
-                {/* Padding inferior aumentado no mobile (pb-24) para o conteúdo não ficar atrás da navbar */}
-                <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll relative pb-24 md:pb-8">
-                    {activeModule === 'dashboard' && (
-                        <div className="space-y-6 md:space-y-8 animate-fade-in">
+                    {/* Padding inferior aumentado no mobile (pb-24) para o conteúdo não ficar atrás da navbar */}
+                    <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll relative pb-24 md:pb-8">
+                        {activeModule === 'dashboard' && (
+                            <div className="space-y-6 md:space-y-8 animate-fade-in">
 
-                            {/* INSIGHTS SECTION (AI) */}
-                            <div className="mb-8 animate-fade-in-up">
-                                <div className="flex justify-between items-center mb-4">
-                                    <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2">
-                                        <Brain size={24} className="text-indigo-600" />
-                                        Consultor IA
-                                    </h2>
-                                    <button onClick={() => { setDismissedInsights([]); setRefreshSeed(s => s + 1); }} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
-                                        <RefreshCcw size={14} /> Atualizar Análise
-                                    </button>
-                                </div>
-
-                                {/* Score Card */}
-                                <div className="mb-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
-                                    <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
-
-                                    <div className="flex items-center gap-4 relative z-10">
-                                        <div className={`w-20 h-20 rounded-full flex items-center justify-center border-4 text-2xl font-bold ${insights.score.score >= 80 ? 'border-emerald-400 text-emerald-400' : insights.score.score >= 60 ? 'border-amber-400 text-amber-400' : 'border-rose-400 text-rose-400'}`}>
-                                            {insights.score.score}
-                                        </div>
-                                        <div>
-                                            <h3 className="text-slate-300 text-sm uppercase font-bold tracking-wider">Score Financeiro</h3>
-                                            <p className="text-2xl font-bold">{insights.score.status}</p>
-                                        </div>
+                                {/* INSIGHTS SECTION (AI) */}
+                                <div className="mb-8 animate-fade-in-up">
+                                    <div className="flex justify-between items-center mb-4">
+                                        <h2 className="text-xl font-bold bg-gradient-to-r from-indigo-600 to-purple-600 bg-clip-text text-transparent flex items-center gap-2">
+                                            <Brain size={24} className="text-indigo-600" />
+                                            Consultor IA
+                                        </h2>
+                                        <button onClick={() => { setDismissedInsights([]); setRefreshSeed(s => s + 1); }} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
+                                            <RefreshCcw size={14} /> Atualizar Análise
+                                        </button>
                                     </div>
-                                    <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
-                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
-                                    </div>
-                                </div>
 
-                                {/* Cards de Insights */}
-                                {insights.insights.filter(i => i.id !== 'daily-wisdom').length > 0 ? (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
-                                        {insights.insights.filter(i => i.id !== 'daily-wisdom').map(item => (
-                                            <div key={item.id} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm relative group animate-fade-in ${item.color === 'emerald' ? 'bg-emerald-50 border-emerald-100' : item.color === 'orange' ? 'bg-orange-50 border-orange-100' : item.color === 'rose' ? 'bg-rose-50 border-rose-100' : item.color === 'indigo' ? 'bg-indigo-50 border-indigo-100' : item.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
-                                                <div className={`p-2 rounded-lg ${item.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : item.color === 'orange' ? 'bg-orange-100 text-orange-600' : item.color === 'rose' ? 'bg-rose-100 text-rose-600' : item.color === 'indigo' ? 'bg-indigo-100 text-indigo-600' : item.color === 'purple' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
-                                                    <item.icon size={18} />
-                                                </div>
-                                                <div className="flex-1">
-                                                    <h4 className={`text-sm font-bold ${item.color === 'emerald' ? 'text-emerald-800' : item.color === 'orange' ? 'text-orange-800' : item.color === 'rose' ? 'text-rose-800' : item.color === 'indigo' ? 'text-indigo-800' : item.color === 'purple' ? 'text-purple-800' : 'text-blue-800'}`}>{item.title}</h4>
-                                                    <p className="text-xs text-slate-600 mt-1">{item.message}</p>
-                                                </div>
-                                                <button onClick={() => setDismissedInsights([...dismissedInsights, item.id])} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition"><X size={14} /></button>
+                                    {/* Score Card */}
+                                    <div className="mb-6 bg-gradient-to-r from-slate-900 to-slate-800 rounded-2xl p-6 text-white shadow-xl flex flex-col md:flex-row items-center justify-between gap-6 relative overflow-hidden">
+                                        <div className="absolute top-0 right-0 w-64 h-64 bg-white/5 rounded-full blur-3xl -mr-16 -mt-16"></div>
+
+                                        <div className="flex items-center gap-4 relative z-10">
+                                            <div className={`w-20 h-20 rounded-full flex items-center justify-center border-4 text-2xl font-bold ${insights.score.score >= 80 ? 'border-emerald-400 text-emerald-400' : insights.score.score >= 60 ? 'border-amber-400 text-amber-400' : 'border-rose-400 text-rose-400'}`}>
+                                                {insights.score.score}
                                             </div>
-                                        ))}
-                                    </div>
-                                ) : (
-                                    <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 mb-4">
-                                        <p className="text-slate-500 text-sm">Nenhum novo insight no momento. Você está no controle!</p>
-                                    </div>
-                                )}
-
-                                {/* CITAÇÃO DO DIA */}
-                                <div className="mt-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 relative">
-                                    <Quote size={40} className="absolute top-4 left-4 text-indigo-200 opacity-50" />
-                                    <div className="relative z-10 pl-6 md:pl-10">
-                                        <p className="text-lg font-serif italic text-slate-700 mb-3">"{insights.dailyQuote.text}"</p>
-                                        <div className="flex items-center gap-2">
-                                            <div className="h-px bg-indigo-200 w-8"></div>
-                                            <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">{insights.dailyQuote.author}</p>
-                                            <span className="text-xs text-slate-400">• {insights.dailyQuote.source}</span>
+                                            <div>
+                                                <h3 className="text-slate-300 text-sm uppercase font-bold tracking-wider">Score Financeiro</h3>
+                                                <p className="text-2xl font-bold">{insights.score.status}</p>
+                                            </div>
                                         </div>
-                                    </div>
-                                </div>
-                            </div>
-
-                            {/* MURAL DA MENTORA */}
-                            {(session?.user?.email === 'flavia@mentora.com' || (mentorNotes && mentorNotes.length > 0)) && (
-                                <div className="mb-8 bg-[#FDF8F6] border border-orange-100 rounded-2xl p-6 relative overflow-hidden animate-fade-in">
-                                    <div className="absolute top-0 right-0 p-4 opacity-5"><User size={120} /></div>
-                                    <div className="flex items-center gap-3 mb-4 relative z-10">
-                                        <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 border border-orange-200">
-                                            <Star size={20} fill="currentColor" />
-                                        </div>
-                                        <div>
-                                            <h3 className="font-bold text-slate-800">Mural da Mentora</h3>
-                                            <p className="text-xs text-slate-500">Recados oficiais de Flávia</p>
+                                        <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
+                                            <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
                                         </div>
                                     </div>
 
-                                    {/* Se for a Flávia, mostra input */}
-                                    {session?.user?.email === 'flavia@mentora.com' && (
-                                        <div className="mb-6 flex gap-2 relative z-10">
-                                            <input
-                                                id="mentor-input"
-                                                className="flex-1 bg-white border border-orange-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-orange-200"
-                                                placeholder="Escreva um recado para a família..."
-                                                onKeyDown={e => {
-                                                    if (e.key === 'Enter') {
-                                                        const val = e.currentTarget.value;
-                                                        if (val) { handleAddNote(val); e.currentTarget.value = ''; }
-                                                    }
-                                                }}
-                                            />
-                                            <button
-                                                onClick={() => {
-                                                    const inp = document.getElementById('mentor-input') as HTMLInputElement;
-                                                    if (inp && inp.value) { handleAddNote(inp.value); inp.value = ''; }
-                                                }}
-                                                className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-xl transition shadow-lg shadow-orange-200"
-                                            >
-                                                <Send size={20} />
-                                            </button>
+                                    {/* Cards de Insights */}
+                                    {insights.insights.filter(i => i.id !== 'daily-wisdom').length > 0 ? (
+                                        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4 mb-4">
+                                            {insights.insights.filter(i => i.id !== 'daily-wisdom').map(item => (
+                                                <div key={item.id} className={`p-4 rounded-xl border flex items-start gap-3 shadow-sm relative group animate-fade-in ${item.color === 'emerald' ? 'bg-emerald-50 border-emerald-100' : item.color === 'orange' ? 'bg-orange-50 border-orange-100' : item.color === 'rose' ? 'bg-rose-50 border-rose-100' : item.color === 'indigo' ? 'bg-indigo-50 border-indigo-100' : item.color === 'purple' ? 'bg-purple-50 border-purple-100' : 'bg-blue-50 border-blue-100'}`}>
+                                                    <div className={`p-2 rounded-lg ${item.color === 'emerald' ? 'bg-emerald-100 text-emerald-600' : item.color === 'orange' ? 'bg-orange-100 text-orange-600' : item.color === 'rose' ? 'bg-rose-100 text-rose-600' : item.color === 'indigo' ? 'bg-indigo-100 text-indigo-600' : item.color === 'purple' ? 'bg-purple-100 text-purple-600' : 'bg-blue-100 text-blue-600'}`}>
+                                                        <item.icon size={18} />
+                                                    </div>
+                                                    <div className="flex-1">
+                                                        <h4 className={`text-sm font-bold ${item.color === 'emerald' ? 'text-emerald-800' : item.color === 'orange' ? 'text-orange-800' : item.color === 'rose' ? 'text-rose-800' : item.color === 'indigo' ? 'text-indigo-800' : item.color === 'purple' ? 'text-purple-800' : 'text-blue-800'}`}>{item.title}</h4>
+                                                        <p className="text-xs text-slate-600 mt-1">{item.message}</p>
+                                                    </div>
+                                                    <button onClick={() => setDismissedInsights([...dismissedInsights, item.id])} className="absolute top-2 right-2 p-1 text-slate-400 hover:text-slate-600 opacity-0 group-hover:opacity-100 transition"><X size={14} /></button>
+                                                </div>
+                                            ))}
+                                        </div>
+                                    ) : (
+                                        <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 mb-4">
+                                            <p className="text-slate-500 text-sm">Nenhum novo insight no momento. Você está no controle!</p>
                                         </div>
                                     )}
 
-                                    {/* Lista de Recados (Filtrada por Mês) */}
-                                    <div className="space-y-3 relative z-10">
-                                        {mentorNotes && mentorNotes.filter(n => {
-                                            const nDate = new Date(n.created_at);
-                                            return nDate.getMonth() === dateFilter.month && nDate.getFullYear() === dateFilter.year;
-                                        }).length > 0 ? (
-                                            mentorNotes.filter(n => {
+                                    {/* CITAÇÃO DO DIA */}
+                                    <div className="mt-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 relative">
+                                        <Quote size={40} className="absolute top-4 left-4 text-indigo-200 opacity-50" />
+                                        <div className="relative z-10 pl-6 md:pl-10">
+                                            <p className="text-lg font-serif italic text-slate-700 mb-3">"{insights.dailyQuote.text}"</p>
+                                            <div className="flex items-center gap-2">
+                                                <div className="h-px bg-indigo-200 w-8"></div>
+                                                <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">{insights.dailyQuote.author}</p>
+                                                <span className="text-xs text-slate-400">• {insights.dailyQuote.source}</span>
+                                            </div>
+                                        </div>
+                                    </div>
+                                </div>
+
+                                {/* MURAL DA MENTORA */}
+                                {(session?.user?.email === 'flavia@mentora.com' || (mentorNotes && mentorNotes.length > 0)) && (
+                                    <div className="mb-8 bg-[#FDF8F6] border border-orange-100 rounded-2xl p-6 relative overflow-hidden animate-fade-in">
+                                        <div className="absolute top-0 right-0 p-4 opacity-5"><User size={120} /></div>
+                                        <div className="flex items-center gap-3 mb-4 relative z-10">
+                                            <div className="w-10 h-10 rounded-full bg-orange-100 flex items-center justify-center text-orange-600 border border-orange-200">
+                                                <Star size={20} fill="currentColor" />
+                                            </div>
+                                            <div>
+                                                <h3 className="font-bold text-slate-800">Mural da Mentora</h3>
+                                                <p className="text-xs text-slate-500">Recados oficiais de Flávia</p>
+                                            </div>
+                                        </div>
+
+                                        {/* Se for a Flávia, mostra input */}
+                                        {session?.user?.email === 'flavia@mentora.com' && (
+                                            <div className="mb-6 flex gap-2 relative z-10">
+                                                <input
+                                                    id="mentor-input"
+                                                    className="flex-1 bg-white border border-orange-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-orange-200"
+                                                    placeholder="Escreva um recado para a família..."
+                                                    onKeyDown={e => {
+                                                        if (e.key === 'Enter') {
+                                                            const val = e.currentTarget.value;
+                                                            if (val) { handleAddNote(val); e.currentTarget.value = ''; }
+                                                        }
+                                                    }}
+                                                />
+                                                <button
+                                                    onClick={() => {
+                                                        const inp = document.getElementById('mentor-input') as HTMLInputElement;
+                                                        if (inp && inp.value) { handleAddNote(inp.value); inp.value = ''; }
+                                                    }}
+                                                    className="bg-orange-500 hover:bg-orange-600 text-white p-3 rounded-xl transition shadow-lg shadow-orange-200"
+                                                >
+                                                    <Send size={20} />
+                                                </button>
+                                            </div>
+                                        )}
+
+                                        {/* Lista de Recados (Filtrada por Mês) */}
+                                        <div className="space-y-3 relative z-10">
+                                            {mentorNotes && mentorNotes.filter(n => {
                                                 const nDate = new Date(n.created_at);
                                                 return nDate.getMonth() === dateFilter.month && nDate.getFullYear() === dateFilter.year;
-                                            }).map((note: any) => (
-                                                <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex items-start gap-3">
-                                                    <div className="mt-1 text-orange-400">
-                                                        <MessageSquare size={16} />
-                                                    </div>
-                                                    <div className="flex-1">
-                                                        {editingNoteId === note.id ? (
-                                                            <div className="flex gap-2 w-full animate-fade-in">
-                                                                <input
-                                                                    type="text"
-                                                                    value={editingNoteText}
-                                                                    onChange={e => setEditingNoteText(e.target.value)}
-                                                                    className="flex-1 p-2 border border-indigo-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-indigo-500"
-                                                                    autoFocus
-                                                                />
-                                                                <button onClick={() => handleEditNote(note.id, editingNoteText)} className="text-white bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700 transition" title="Salvar">
-                                                                    <Send size={14} />
-                                                                </button>
-                                                                <button onClick={() => setEditingNoteId(null)} className="text-slate-500 p-2 hover:bg-slate-100 rounded-lg transition" title="Cancelar">
-                                                                    <X size={14} />
-                                                                </button>
-                                                            </div>
-                                                        ) : (
-                                                            <>
-                                                                <p className="text-slate-700 font-medium text-sm md:text-base mb-1">"{note.message}"</p>
-                                                                <div className="flex items-center justify-between">
-                                                                    <div className="flex items-center gap-2">
-                                                                        <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full">{note.author_name}</span>
-                                                                        <span className="text-xs text-slate-400">{new Date(note.created_at).toLocaleDateString('pt-BR')}</span>
-                                                                    </div>
-                                                                    {isReadOnly && (
-                                                                        <div className="flex gap-1">
-                                                                            <button onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.message); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
-                                                                                <Edit2 size={14} />
-                                                                            </button>
-                                                                            <button onClick={() => handleDeleteNote(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Excluir">
-                                                                                <Trash2 size={14} />
-                                                                            </button>
-                                                                        </div>
-                                                                    )}
+                                            }).length > 0 ? (
+                                                mentorNotes.filter(n => {
+                                                    const nDate = new Date(n.created_at);
+                                                    return nDate.getMonth() === dateFilter.month && nDate.getFullYear() === dateFilter.year;
+                                                }).map((note: any) => (
+                                                    <div key={note.id} className="bg-white p-4 rounded-xl border border-orange-100 shadow-sm flex items-start gap-3">
+                                                        <div className="mt-1 text-orange-400">
+                                                            <MessageSquare size={16} />
+                                                        </div>
+                                                        <div className="flex-1">
+                                                            {editingNoteId === note.id ? (
+                                                                <div className="flex gap-2 w-full animate-fade-in">
+                                                                    <input
+                                                                        type="text"
+                                                                        value={editingNoteText}
+                                                                        onChange={e => setEditingNoteText(e.target.value)}
+                                                                        className="flex-1 p-2 border border-indigo-200 rounded-lg text-sm bg-slate-50 outline-none focus:border-indigo-500"
+                                                                        autoFocus
+                                                                    />
+                                                                    <button onClick={() => handleEditNote(note.id, editingNoteText)} className="text-white bg-indigo-600 p-2 rounded-lg hover:bg-indigo-700 transition" title="Salvar">
+                                                                        <Send size={14} />
+                                                                    </button>
+                                                                    <button onClick={() => setEditingNoteId(null)} className="text-slate-500 p-2 hover:bg-slate-100 rounded-lg transition" title="Cancelar">
+                                                                        <X size={14} />
+                                                                    </button>
                                                                 </div>
-                                                            </>
-                                                        )}
+                                                            ) : (
+                                                                <>
+                                                                    <p className="text-slate-700 font-medium text-sm md:text-base mb-1">"{note.message}"</p>
+                                                                    <div className="flex items-center justify-between">
+                                                                        <div className="flex items-center gap-2">
+                                                                            <span className="text-xs font-bold text-indigo-900 bg-indigo-100 px-2 py-0.5 rounded-full">{note.author_name}</span>
+                                                                            <span className="text-xs text-slate-400">{new Date(note.created_at).toLocaleDateString('pt-BR')}</span>
+                                                                        </div>
+                                                                        {isReadOnly && (
+                                                                            <div className="flex gap-1">
+                                                                                <button onClick={() => { setEditingNoteId(note.id); setEditingNoteText(note.message); }} className="p-1.5 text-slate-400 hover:text-indigo-600 hover:bg-indigo-50 rounded-lg transition" title="Editar">
+                                                                                    <Edit2 size={14} />
+                                                                                </button>
+                                                                                <button onClick={() => handleDeleteNote(note.id)} className="p-1.5 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-lg transition" title="Excluir">
+                                                                                    <Trash2 size={14} />
+                                                                                </button>
+                                                                            </div>
+                                                                        )}
+                                                                    </div>
+                                                                </>
+                                                            )}
+                                                        </div>
                                                     </div>
-                                                </div>
-                                            ))
-                                        ) : (
-                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mês.</p>
-                                        )}
+                                                ))
+                                            ) : (
+                                                <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mês.</p>
+                                            )}
+                                        </div>
+                                    </div>
+                                )}
+
+                                {/* KPI GRID RESPONSIVO (1 coluna mobile -> 2 colunas sm -> 4 colunas lg) */}
+                                <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
+                                    <KPICard title="Receitas" value={kpiData.income} icon={TrendingUp} color="emerald" />
+                                    <KPICard title="Despesas" value={kpiData.expense} icon={TrendingDown} color="rose" />
+                                    <KPICard title="Saldo Final" value={kpiData.balance} icon={Wallet} color="blue" />
+                                    <KPICard title="Patrimônio Total" value={kpiData.invested} icon={Briefcase} color="teal" />
+                                </div>
+
+                                {/* EVOLUTION CHART */}
+                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
+                                    <div className="flex justify-between items-center mb-6">
+                                        <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base"><ArrowUpRight size={20} className="text-emerald-500" /> Evolução Patrimonial (6 Meses)</h3>
+                                        <div className="flex items-center gap-2 text-xs">
+                                            <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-emerald-500"></div> <span className="hidden sm:inline">Total</span></span>
+                                            <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-slate-300"></div> <span className="hidden sm:inline">Investido</span></span>
+                                        </div>
+                                    </div>
+                                    <div className="h-[200px] md:h-[250px] w-full">
+                                        <ResponsiveContainer width="100%" height="100%">
+                                            <AreaChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
+                                                <defs>
+                                                    <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
+                                                        <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
+                                                        <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
+                                                    </linearGradient>
+                                                </defs>
+                                                <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
+                                                <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                                                <Tooltip
+                                                    contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
+                                                    formatter={(value: number, name: string) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, name]}
+                                                />
+                                                <Area type="monotone" dataKey="Total" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
+                                                <Area type="monotone" dataKey="Investimentos" stroke="#cbd5e1" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
+                                            </AreaChart>
+                                        </ResponsiveContainer>
                                     </div>
                                 </div>
-                            )}
 
-                            {/* KPI GRID RESPONSIVO (1 coluna mobile -> 2 colunas sm -> 4 colunas lg) */}
-                            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 md:gap-6">
-                                <KPICard title="Receitas" value={kpiData.income} icon={TrendingUp} color="emerald" />
-                                <KPICard title="Despesas" value={kpiData.expense} icon={TrendingDown} color="rose" />
-                                <KPICard title="Saldo Final" value={kpiData.balance} icon={Wallet} color="blue" />
-                                <KPICard title="Patrimônio Total" value={kpiData.invested} icon={Briefcase} color="teal" />
-                            </div>
-
-                            {/* EVOLUTION CHART */}
-                            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
-                                <div className="flex justify-between items-center mb-6">
-                                    <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base"><ArrowUpRight size={20} className="text-emerald-500" /> Evolução Patrimonial (6 Meses)</h3>
-                                    <div className="flex items-center gap-2 text-xs">
-                                        <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-emerald-500"></div> <span className="hidden sm:inline">Total</span></span>
-                                        <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-slate-300"></div> <span className="hidden sm:inline">Investido</span></span>
+                                {/* GRÁFICOS INFERIORES RESPONSIVOS (Stack vertical no mobile) */}
+                                <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:h-[400px]">
+                                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
+                                        <h3 className="font-bold text-slate-700 mb-6">Receitas X Despesas</h3>
+                                        <div className="flex-1 min-h-0">
+                                            <ResponsiveContainer width="100%" height="100%"><BarChart data={[{ name: 'Receita', value: kpiData.income }, { name: 'Despesa', value: kpiData.expense }]} margin={{ top: 30 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="name" axisLine={false} tickLine={false} /><Bar dataKey="value" radius={[8, 8, 0, 0]}>{[{ name: 'Receita', value: kpiData.income }, { name: 'Despesa', value: kpiData.expense }].map((e, i) => <Cell key={i} fill={i === 0 ? '#10b981' : '#f43f5e'} />)}<LabelList dataKey="value" position="top" formatter={(v: number) => `R$ ${v.toLocaleString('pt-BR', { notation: 'compact' })}`} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }} /></Bar></BarChart></ResponsiveContainer>
+                                        </div>
+                                    </div>
+                                    <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
+                                        <h3 className="font-bold text-slate-700 mb-6">Composição Financeira</h3>
+                                        <div className="flex-1 min-h-0">
+                                            <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Essencial', value: kpiData.expense * 0.6 }, { name: 'Estilo de Vida', value: kpiData.expense * 0.4 }, { name: 'Investimentos', value: kpiData.invested > 0 ? kpiData.invested * 0.1 : 0 }]} innerRadius={50} outerRadius={75} paddingAngle={5} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>{PIE_COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer>
+                                        </div>
                                     </div>
                                 </div>
-                                <div className="h-[200px] md:h-[250px] w-full">
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={evolutionData} margin={{ top: 10, right: 10, left: -20, bottom: 0 }}>
-                                            <defs>
-                                                <linearGradient id="colorTotal" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#10b981" stopOpacity={0.2} />
-                                                    <stop offset="95%" stopColor="#10b981" stopOpacity={0} />
-                                                </linearGradient>
-                                            </defs>
-                                            <XAxis dataKey="name" axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} />
-                                            <YAxis axisLine={false} tickLine={false} tick={{ fontSize: 10, fill: '#94a3b8' }} tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
-                                            <Tooltip
-                                                contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 4px 6px -1px rgb(0 0 0 / 0.1)' }}
-                                                formatter={(value: number, name: string) => [`R$ ${value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}`, name]}
-                                            />
-                                            <Area type="monotone" dataKey="Total" stroke="#10b981" strokeWidth={3} fillOpacity={1} fill="url(#colorTotal)" />
-                                            <Area type="monotone" dataKey="Investimentos" stroke="#cbd5e1" strokeWidth={2} fill="transparent" strokeDasharray="5 5" />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                            </div>
 
-                            {/* GRÁFICOS INFERIORES RESPONSIVOS (Stack vertical no mobile) */}
-                            <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:h-[400px]">
-                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
-                                    <h3 className="font-bold text-slate-700 mb-6">Receitas X Despesas</h3>
-                                    <div className="flex-1 min-h-0">
-                                        <ResponsiveContainer width="100%" height="100%"><BarChart data={[{ name: 'Receita', value: kpiData.income }, { name: 'Despesa', value: kpiData.expense }]} margin={{ top: 30 }}><CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#e2e8f0" /><XAxis dataKey="name" axisLine={false} tickLine={false} /><Bar dataKey="value" radius={[8, 8, 0, 0]}>{[{ name: 'Receita', value: kpiData.income }, { name: 'Despesa', value: kpiData.expense }].map((e, i) => <Cell key={i} fill={i === 0 ? '#10b981' : '#f43f5e'} />)}<LabelList dataKey="value" position="top" formatter={(v: number) => `R$ ${v.toLocaleString('pt-BR', { notation: 'compact' })}`} style={{ fontSize: '12px', fontWeight: 'bold', fill: '#475569' }} /></Bar></BarChart></ResponsiveContainer>
+                                <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
+                                    <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700">Últimas Transações</h3><span className="text-xs text-slate-400">Página {currentPage + 1} de {totalPages || 1}</span></div>
+
+                                    {/* Table Wrapper para scroll horizontal no mobile */}
+                                    <div className="overflow-x-auto">
+                                        <table className="w-full text-left min-w-[500px] md:min-w-full">
+                                            <thead className="text-slate-500 text-xs uppercase font-bold border-b border-slate-100"><tr><th className="py-3 px-2">Título</th><th className="py-3 px-2">Data</th><th className="py-3 px-2">Categoria</th><th className="py-3 px-2 text-right">Valor</th><th className="py-3 px-2"></th></tr></thead>
+                                            <tbody className="text-sm">
+                                                {paginatedTransactions.map(t => (
+                                                    <tr key={t.id} onClick={() => !isReadOnly && openEditTransaction(t)} className={`border-b border-slate-50 hover:bg-slate-50 transition ${!isReadOnly ? 'cursor-pointer' : ''} group`}>
+                                                        <td className="py-3 px-2 font-medium text-slate-700 relative">
+                                                            {t.title}
+                                                            {t.user_id && userMap[t.user_id] && (
+                                                                <div className={`absolute top-2 right-[-8px] w-2.5 h-2.5 rounded-full shadow-lg border border-white ${userMap[t.user_id] === 'caio@casa.com' ? 'bg-orange-500 shadow-orange-500/50' : userMap[t.user_id] === 'carla@casa.com' ? 'bg-purple-600 shadow-purple-600/50' : 'bg-slate-300'}`}></div>
+                                                            )}
+                                                        </td>
+                                                        <td className="py-3 px-2 text-slate-500">{formatDate(t.date)}</td>
+                                                        <td className="py-3 px-2"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium">{t.category}</span></td>
+                                                        <td className={`py-3 px-2 text-right font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>{t.type === 'expense' ? '- ' : '+ '}R$ {t.amount.toFixed(2)}</td>
+                                                        <td className="py-3 px-2 text-right">
+                                                            {!isReadOnly && (
+                                                                <div className="flex justify-end gap-1">
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => { e.stopPropagation(); openEditTransaction(t); }}
+                                                                        className="text-slate-300 hover:text-indigo-500 p-2"
+                                                                    >
+                                                                        <Edit2 size={16} className="pointer-events-none" />
+                                                                    </button>
+                                                                    <button
+                                                                        type="button"
+                                                                        onClick={(e) => {
+                                                                            e.preventDefault();
+                                                                            e.stopPropagation();
+                                                                            deleteTransaction(t.id);
+                                                                        }}
+                                                                        className="relative z-50 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
+                                                                    >
+                                                                        <Trash2 size={16} className="pointer-events-none" />
+                                                                    </button>
+                                                                </div>
+                                                            )}
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                    <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-50">
+                                        <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">Anterior</button>
+                                        <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">Próximo</button>
                                     </div>
                                 </div>
-                                <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
-                                    <h3 className="font-bold text-slate-700 mb-6">Composição Financeira</h3>
-                                    <div className="flex-1 min-h-0">
-                                        <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Essencial', value: kpiData.expense * 0.6 }, { name: 'Estilo de Vida', value: kpiData.expense * 0.4 }, { name: 'Investimentos', value: kpiData.invested > 0 ? kpiData.invested * 0.1 : 0 }]} innerRadius={50} outerRadius={75} paddingAngle={5} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>{PIE_COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer>
-                                    </div>
-                                </div>
+                            </div>
+                        )}
+
+                        {activeModule === 'weekly' && <WeeklyCosts
+                            transactions={data.transactions}
+                            configs={data.weeklyConfigs}
+                            updateConfig={(idx: any, field: any, val: any) => { const n = [...data.weeklyConfigs]; n[idx] = { ...n[idx], [field]: val }; setData(p => ({ ...p, weeklyConfigs: n })); }}
+                            categories={[...(data.categoryConfig.expense['ESSENCIAL'] || []), ...(data.categoryConfig.expense['ESTILO DE VIDA'] || [])]}
+                            onEditTransaction={openEditTransaction}
+                            onDeleteTransaction={deleteTransaction}
+                            onSaveConfig={handleSaveWeeklyConfig}
+                            readOnly={isReadOnly}
+                        />}
+
+                        {activeModule === 'goals' && <GoalsView
+                            goals={data.goals}
+                            investments={data.investments}
+                            onAddGoal={handleAddGoal}
+                            onEditGoal={handleEditGoal}
+                            onDeleteGoal={handleDeleteGoal}
+                            userMap={userMap}
+                            currentUserId={session.user.id}
+                            readOnly={isReadOnly}
+                        />}
+
+                        {activeModule === 'investments' && <InvestmentPortfolio
+                            investments={data.investments}
+                            categories={Object.values(data.categoryConfig.investment).flat()}
+                            onAddInvestment={handleAddInvestment}
+                            onEditInvestment={handleEditInvestment}
+                            onDeleteInvestment={handleDeleteInvestment}
+                            onAportar={handleInvestmentAporte}
+                            onResgatar={handleInvestmentResgate}
+                            userMap={userMap}
+                            currentUserId={session.user.id}
+                            config={data.categoryConfig}
+                            readOnly={isReadOnly}
+                        />}
+
+                        {activeModule === 'settings' && <SettingsView config={data.categoryConfig} onUpdate={handleUpdateCategories} readOnly={isReadOnly} onLogout={handleLogout} />}
+                    </div>
+                </main>
+
+                {/* BOTTOM NAVIGATION - VISÍVEL APENAS NO MOBILE */}
+                <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 flex justify-around p-2 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
+                    {navItems.map(item => {
+                        const isActive = activeModule === item.id;
+                        return (
+                            <button
+                                key={item.id}
+                                onClick={() => setActiveModule(item.id as any)}
+                                className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all w-full ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}
+                            >
+                                <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
+                                <span className="text-[10px] font-medium mt-1">{item.label}</span>
+                            </button>
+                        )
+                    })}
+                </div>
+
+                {txModalOpen && (
+                    <div className="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center backdrop-blur-sm p-0 md:p-4" onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }}>
+                        <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg p-6 shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto relative mb-0 md:mb-0 mx-auto" onClick={e => e.stopPropagation()}>
+                            <TransactionFormModal editingTransaction={editingTransaction} data={data} handleSaveTransaction={handleSaveTransaction} setTxModalOpen={setTxModalOpen} setEditingTransaction={setEditingTransaction} onDelete={deleteTransaction} />
+                        </div>
+                    </div>
+                )}
+                {/* Smart Delete Modal */}
+                {smartDeleteModal.isOpen && smartDeleteModal.inv && (
+                    <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center backdrop-blur-sm p-4" onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}>
+                        <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                            <div className="flex items-center gap-3 mb-4 text-amber-600">
+                                <div className="bg-amber-100 p-2 rounded-full"><AlertTriangle size={24} /></div>
+                                <h3 className="text-xl font-bold text-slate-800">Saldo Remanescente</h3>
                             </div>
 
-                            <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
-                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700">Últimas Transações</h3><span className="text-xs text-slate-400">Página {currentPage + 1} de {totalPages || 1}</span></div>
+                            <p className="text-slate-600 mb-6 leading-relaxed">
+                                O ativo <strong className="text-slate-800">{smartDeleteModal.inv.ticker}</strong> ainda possui <strong className="text-emerald-600">R$ {smartDeleteModal.inv.currentValue.toFixed(2)}</strong>.
+                                <br /><br />
+                                O que deseja fazer com este saldo?
+                            </p>
 
-                                {/* Table Wrapper para scroll horizontal no mobile */}
-                                <div className="overflow-x-auto">
-                                    <table className="w-full text-left min-w-[500px] md:min-w-full">
-                                        <thead className="text-slate-500 text-xs uppercase font-bold border-b border-slate-100"><tr><th className="py-3 px-2">Título</th><th className="py-3 px-2">Data</th><th className="py-3 px-2">Categoria</th><th className="py-3 px-2 text-right">Valor</th><th className="py-3 px-2"></th></tr></thead>
-                                        <tbody className="text-sm">
-                                            {paginatedTransactions.map(t => (
-                                                <tr key={t.id} onClick={() => !isReadOnly && openEditTransaction(t)} className={`border-b border-slate-50 hover:bg-slate-50 transition ${!isReadOnly ? 'cursor-pointer' : ''} group`}>
-                                                    <td className="py-3 px-2 font-medium text-slate-700 relative">
-                                                        {t.title}
-                                                        {t.user_id && userMap[t.user_id] && (
-                                                            <div className={`absolute top-2 right-[-8px] w-2.5 h-2.5 rounded-full shadow-lg border border-white ${userMap[t.user_id] === 'caio@casa.com' ? 'bg-orange-500 shadow-orange-500/50' : userMap[t.user_id] === 'carla@casa.com' ? 'bg-purple-600 shadow-purple-600/50' : 'bg-slate-300'}`}></div>
-                                                        )}
-                                                    </td>
-                                                    <td className="py-3 px-2 text-slate-500">{formatDate(t.date)}</td>
-                                                    <td className="py-3 px-2"><span className="bg-slate-100 text-slate-600 px-2 py-1 rounded text-xs font-medium">{t.category}</span></td>
-                                                    <td className={`py-3 px-2 text-right font-bold ${t.type === 'income' ? 'text-emerald-600' : 'text-rose-600'}`}>{t.type === 'expense' ? '- ' : '+ '}R$ {t.amount.toFixed(2)}</td>
-                                                    <td className="py-3 px-2 text-right">
-                                                        {!isReadOnly && (
-                                                            <div className="flex justify-end gap-1">
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => { e.stopPropagation(); openEditTransaction(t); }}
-                                                                    className="text-slate-300 hover:text-indigo-500 p-2"
-                                                                >
-                                                                    <Edit2 size={16} className="pointer-events-none" />
-                                                                </button>
-                                                                <button
-                                                                    type="button"
-                                                                    onClick={(e) => {
-                                                                        e.preventDefault();
-                                                                        e.stopPropagation();
-                                                                        deleteTransaction(t.id);
-                                                                    }}
-                                                                    className="relative z-50 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"
-                                                                >
-                                                                    <Trash2 size={16} className="pointer-events-none" />
-                                                                </button>
-                                                            </div>
-                                                        )}
-                                                    </td>
-                                                </tr>
-                                            ))}
-                                        </tbody>
-                                    </table>
-                                </div>
-                                <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-50">
-                                    <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">Anterior</button>
-                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">Próximo</button>
-                                </div>
+                            <div className="flex flex-col gap-3">
+                                <button
+                                    onClick={() => processSmartDelete('liquidate')}
+                                    className="w-full py-4 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2"
+                                >
+                                    <TrendingUp size={20} />
+                                    Resgatar Tudo e Excluir
+                                    <span className="text-xs font-normal opacity-80">(Liquidar)</span>
+                                </button>
+
+                                <button
+                                    onClick={() => processSmartDelete('delete')}
+                                    className="w-full py-3 px-4 bg-white border-2 border-slate-200 hover:border-rose-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold rounded-xl transition flex items-center justify-center gap-2"
+                                >
+                                    <Trash2 size={18} />
+                                    Apenas Excluir
+                                    <span className="text-xs font-normal opacity-80">(Correção)</span>
+                                </button>
+
+                                <button
+                                    onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}
+                                    className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition text-sm mt-2"
+                                >
+                                    Cancelar
+                                </button>
                             </div>
+                        </div>
+                    </div>
+                )}
+                <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
+            </div>
+        );
+    }
+
+
+    // --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
+    function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
+        const today = new Date().toISOString().split('T')[0];
+        const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
+        const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
+
+        const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
+
+        const handleSave = () => {
+            if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
+            if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
+
+            // Parse final amount
+            const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
+            handleSaveTransaction({ ...form, amount: finalAmount });
+        };
+
+        return (
+            <div onKeyDown={e => e.key === 'Enter' && handleSave()}>
+                <button onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
+                <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} Transação</h3>
+
+                <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                    <button onClick={() => !editingTransaction && setForm({ ...form, type: 'expense' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Despesa</button>
+                    <button onClick={() => !editingTransaction && setForm({ ...form, type: 'income' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Receita</button>
+                </div>
+
+                <div className="space-y-4">
+                    <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
+                    <div className="grid grid-cols-2 gap-4">
+                        <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
+                        <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
+                    </div>
+                    <div><label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
+                        <select className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                            {form.type === 'expense'
+                                ? (Object.entries(data.categoryConfig.expense || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
+                                : (Object.entries(data.categoryConfig.income || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
+                            }
+                        </select>
+                    </div>
+
+                    {form.type === 'expense' && (
+                        <div>
+                            <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Forma de Pagamento</label>
+                            <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÉBITO' : m}</button>))}</div>
                         </div>
                     )}
 
-                    {activeModule === 'weekly' && <WeeklyCosts
-                        transactions={data.transactions}
-                        configs={data.weeklyConfigs}
-                        updateConfig={(idx: any, field: any, val: any) => { const n = [...data.weeklyConfigs]; n[idx] = { ...n[idx], [field]: val }; setData(p => ({ ...p, weeklyConfigs: n })); }}
-                        categories={[...(data.categoryConfig.expense['ESSENCIAL'] || []), ...(data.categoryConfig.expense['ESTILO DE VIDA'] || [])]}
-                        onEditTransaction={openEditTransaction}
-                        onDeleteTransaction={deleteTransaction}
-                        onSaveConfig={handleSaveWeeklyConfig}
-                        readOnly={isReadOnly}
-                    />}
-
-                    {activeModule === 'goals' && <GoalsView
-                        goals={data.goals}
-                        investments={data.investments}
-                        onAddGoal={handleAddGoal}
-                        onEditGoal={handleEditGoal}
-                        onDeleteGoal={handleDeleteGoal}
-                        userMap={userMap}
-                        currentUserId={session.user.id}
-                        readOnly={isReadOnly}
-                    />}
-
-                    {activeModule === 'investments' && <InvestmentPortfolio
-                        investments={data.investments}
-                        categories={Object.values(data.categoryConfig.investment).flat()}
-                        onAddInvestment={handleAddInvestment}
-                        onEditInvestment={handleEditInvestment}
-                        onDeleteInvestment={handleDeleteInvestment}
-                        onAportar={handleInvestmentAporte}
-                        onResgatar={handleInvestmentResgate}
-                        userMap={userMap}
-                        currentUserId={session.user.id}
-                        config={data.categoryConfig}
-                        readOnly={isReadOnly}
-                    />}
-
-                    {activeModule === 'settings' && <SettingsView config={data.categoryConfig} onUpdate={handleUpdateCategories} readOnly={isReadOnly} onLogout={handleLogout} />}
+                    <div><label className="text-xs font-bold text-slate-500 uppercase">Descrição</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
                 </div>
-            </main>
-
-            {/* BOTTOM NAVIGATION - VISÍVEL APENAS NO MOBILE */}
-            <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 flex justify-around p-2 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
-                {navItems.map(item => {
-                    const isActive = activeModule === item.id;
-                    return (
-                        <button
-                            key={item.id}
-                            onClick={() => setActiveModule(item.id as any)}
-                            className={`flex flex-col items-center justify-center p-2 rounded-xl transition-all w-full ${isActive ? 'text-indigo-600' : 'text-slate-400'}`}
-                        >
-                            <item.icon size={24} strokeWidth={isActive ? 2.5 : 2} />
-                            <span className="text-[10px] font-medium mt-1">{item.label}</span>
-                        </button>
-                    )
-                })}
+                <button onClick={handleSave} className="w-full mt-6 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg">Salvar</button>
             </div>
+        );
+    }
 
-            {txModalOpen && (
-                <div className="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center backdrop-blur-sm p-0 md:p-4" onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }}>
-                    <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg p-6 shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto relative mb-0 md:mb-0 mx-auto" onClick={e => e.stopPropagation()}>
-                        <TransactionFormModal editingTransaction={editingTransaction} data={data} handleSaveTransaction={handleSaveTransaction} setTxModalOpen={setTxModalOpen} setEditingTransaction={setEditingTransaction} onDelete={deleteTransaction} />
-                    </div>
-                </div>
-            )}
-            {/* Smart Delete Modal */}
-            {smartDeleteModal.isOpen && smartDeleteModal.inv && (
-                <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center backdrop-blur-sm p-4" onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}>
-                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                        <div className="flex items-center gap-3 mb-4 text-amber-600">
-                            <div className="bg-amber-100 p-2 rounded-full"><AlertTriangle size={24} /></div>
-                            <h3 className="text-xl font-bold text-slate-800">Saldo Remanescente</h3>
-                        </div>
-
-                        <p className="text-slate-600 mb-6 leading-relaxed">
-                            O ativo <strong className="text-slate-800">{smartDeleteModal.inv.ticker}</strong> ainda possui <strong className="text-emerald-600">R$ {smartDeleteModal.inv.currentValue.toFixed(2)}</strong>.
-                            <br /><br />
-                            O que deseja fazer com este saldo?
-                        </p>
-
-                        <div className="flex flex-col gap-3">
-                            <button
-                                onClick={() => processSmartDelete('liquidate')}
-                                className="w-full py-4 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2"
-                            >
-                                <TrendingUp size={20} />
-                                Resgatar Tudo e Excluir
-                                <span className="text-xs font-normal opacity-80">(Liquidar)</span>
-                            </button>
-
-                            <button
-                                onClick={() => processSmartDelete('delete')}
-                                className="w-full py-3 px-4 bg-white border-2 border-slate-200 hover:border-rose-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold rounded-xl transition flex items-center justify-center gap-2"
-                            >
-                                <Trash2 size={18} />
-                                Apenas Excluir
-                                <span className="text-xs font-normal opacity-80">(Correção)</span>
-                            </button>
-
-                            <button
-                                onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}
-                                className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition text-sm mt-2"
-                            >
-                                Cancelar
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            )}
-            <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
-        </div>
-    );
-}
-
-
-// --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
-function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
-    const today = new Date().toISOString().split('T')[0];
-    const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
-    const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
-
-    const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
-
-    const handleSave = () => {
-        if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
-        if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
-
-        // Parse final amount
-        const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
-        handleSaveTransaction({ ...form, amount: finalAmount });
+    const KPICard = ({ title, value, icon: Icon, color }: any) => {
+        const colorClasses: any = { emerald: 'bg-emerald-100 text-emerald-600', rose: 'bg-rose-100 text-rose-600', blue: 'bg-blue-100 text-blue-600', teal: 'bg-teal-100 text-teal-600' };
+        return (
+            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition">
+                <div><p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{title}</p><h3 className="text-xl md:text-2xl font-bold text-slate-800">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3></div>
+                <div className={`p-3 rounded-xl ${colorClasses[color]}`}><Icon size={24} /></div>
+            </div>
+        );
     };
-
-    return (
-        <div onKeyDown={e => e.key === 'Enter' && handleSave()}>
-            <button onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
-            <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} Transação</h3>
-
-            <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                <button onClick={() => !editingTransaction && setForm({ ...form, type: 'expense' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Despesa</button>
-                <button onClick={() => !editingTransaction && setForm({ ...form, type: 'income' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Receita</button>
-            </div>
-
-            <div className="space-y-4">
-                <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
-                <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
-                </div>
-                <div><label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
-                    <select className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                        {form.type === 'expense'
-                            ? (Object.entries(data.categoryConfig.expense || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
-                            : (Object.entries(data.categoryConfig.income || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
-                        }
-                    </select>
-                </div>
-
-                {form.type === 'expense' && (
-                    <div>
-                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Forma de Pagamento</label>
-                        <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÉBITO' : m}</button>))}</div>
-                    </div>
-                )}
-
-                <div><label className="text-xs font-bold text-slate-500 uppercase">Descrição</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
-            </div>
-            <button onClick={handleSave} className="w-full mt-6 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg">Salvar</button>
-        </div>
-    );
-}
-
-const KPICard = ({ title, value, icon: Icon, color }: any) => {
-    const colorClasses: any = { emerald: 'bg-emerald-100 text-emerald-600', rose: 'bg-rose-100 text-rose-600', blue: 'bg-blue-100 text-blue-600', teal: 'bg-teal-100 text-teal-600' };
-    return (
-        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition">
-            <div><p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{title}</p><h3 className="text-xl md:text-2xl font-bold text-slate-800">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3></div>
-            <div className={`p-3 rounded-xl ${colorClasses[color]}`}><Icon size={24} /></div>
-        </div>
-    );
-};
 
