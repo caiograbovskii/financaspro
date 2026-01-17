@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useMemo } from 'react';
 import {
     Plus, PieChart,
-    Trash2, Edit2, Save, X, Activity, ChevronDown, ChevronUp, Check, FolderPlus,
+    Trash2, Edit2, Save, X, Activity, ChevronDown, ChevronUp, ArrowUpRight, Check, FolderPlus,
     PiggyBank, TrendingUp, Wallet, Briefcase, Layers, LogOut, Shield
 } from 'lucide-react';
 import {
@@ -318,6 +318,7 @@ interface InvestProps {
     onEditInvestment: (asset: InvestmentAsset) => void;
     onDeleteInvestment: (id: string) => void;
     onAportar: (id: string, amount: number) => void;
+    onResgatar?: (id: string, amount: number) => void;
     readOnly?: boolean;
     userMap?: Record<string, string>;
     currentUserId?: string;
@@ -325,7 +326,7 @@ interface InvestProps {
 }
 
 export const InvestmentPortfolio: React.FC<InvestProps> = ({
-    investments, categories, onAddInvestment, onEditInvestment, onDeleteInvestment, onAportar,
+    investments, categories, onAddInvestment, onEditInvestment, onDeleteInvestment, onAportar, onResgatar,
     readOnly, userMap, currentUserId, config
 }) => {
     const [showForm, setShowForm] = useState(false);
@@ -506,24 +507,56 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 
                             <div className="mt-4 pt-4 border-t border-black/5" onClick={e => e.stopPropagation()}>
                                 {aporteMode === inv.id ? (
-                                    <div className="flex gap-2 items-center animate-fade-in">
-                                        <input
-                                            autoFocus
-                                            type="number"
-                                            className="w-full p-2 text-sm border border-indigo-200 rounded-lg focus:border-indigo-500 outline-none text-slate-900 bg-white"
-                                            placeholder="R$ Valor"
-                                            value={aporteValue}
-                                            onChange={e => setAporteValue(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && handleAporte(inv.id)}
-                                        />
-                                        <button onClick={() => handleAporte(inv.id)} className="p-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 shadow-sm"><Check size={16} /></button>
-                                        <button onClick={() => setAporteMode(null)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={16} /></button>
+                                    <div className="flex flex-col gap-2 animate-fade-in">
+                                        <div className="flex gap-2 items-center">
+                                            <input
+                                                autoFocus
+                                                type="number"
+                                                className="w-full p-2 text-sm border border-indigo-200 rounded-lg focus:border-indigo-500 outline-none text-slate-900 bg-white"
+                                                placeholder="R$ Valor"
+                                                value={aporteValue}
+                                                onChange={e => setAporteValue(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && handleAporte(inv.id)}
+                                            />
+                                            <button onClick={() => setAporteMode(null)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={16} /></button>
+                                        </div>
+                                        {/* Botões de Ação para o Input Aberto */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleAporte(inv.id)}
+                                                className={`flex-1 py-2 rounded-lg font-bold text-white text-xs uppercase tracking-wide shadow-sm flex items-center justify-center gap-2 ${isPiggy ? 'bg-teal-500 hover:bg-teal-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                                            >
+                                                <Plus size={14} /> Depositar
+                                            </button>
+
+                                            <button
+                                                onClick={() => {
+                                                    const val = Number(aporteValue);
+                                                    if (!val || val <= 0) return;
+                                                    // Verifica se tem saldo suficiente
+                                                    if (val > inv.currentValue) {
+                                                        alert('Saldo insuficiente para resgate.');
+                                                        return;
+                                                    }
+                                                    // Chama onResgatar (que precisa ser passado via props)
+                                                    // Como onResgatar não está no escopo local do componente Card, precisamos garantir que ele venha de props
+                                                    // Assumindo que o componente pai passa onResgatar para InvestmentPortfolio e ele para aqui.
+                                                    // Mas wait, handleAporte é local aqui. Precisamos de handleResgate local também.
+                                                    if (onResgatar) onResgatar(inv.id, val);
+                                                    setAporteMode(null);
+                                                    setAporteValue('');
+                                                }}
+                                                className="flex-1 py-2 rounded-lg font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 text-xs uppercase tracking-wide shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                <ArrowUpRight size={14} /> Resgatar
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
                                         {!readOnly && (
-                                            <button onClick={() => { setAporteMode(inv.id); setAporteValue(''); }} className={`w-full py-2 text-xs font-bold text-white rounded-lg transition shadow-sm ${isPiggy ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}>
-                                                Aportar
+                                            <button onClick={() => { setAporteMode(inv.id); setAporteValue(''); }} className={`w-full py-2 text-xs font-bold text-white rounded-lg transition shadow-sm flex items-center justify-center gap-2 ${isPiggy ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}>
+                                                Movimentar <ChevronUp size={14} />
                                             </button>
                                         )}
                                     </div>

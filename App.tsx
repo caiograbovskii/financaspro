@@ -1314,6 +1314,7 @@ function MainApp() {
                         onEditInvestment={handleEditInvestment}
                         onDeleteInvestment={handleDeleteInvestment}
                         onAportar={handleInvestmentAporte}
+                        onResgatar={handleInvestmentResgate}
                         userMap={userMap}
                         currentUserId={session.user.id}
                         config={data.categoryConfig}
