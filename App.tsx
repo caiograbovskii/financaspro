@@ -566,14 +566,27 @@ function MainApp() {
     };
 
     const handleAddInvestment = async (newInv: InvestmentAsset) => {
-        // CORREÇÃO: Adicionar purchaseDate imediato para atualização otimista
+        // CORREÇÃO: Adicionar purchaseDate imediato e Histórico Inicial Obrigatório
         const now = new Date().toISOString();
+        let safeHistory = newInv.history || [];
+        const initialAmount = Number(newInv.totalInvested || 0);
+
+        if (initialAmount > 0 && safeHistory.length === 0) {
+            safeHistory = [{
+                id: Date.now().toString(),
+                date: now.split('T')[0],
+                amount: initialAmount,
+                description: 'Aporte Inicial',
+                userId: session.user.id
+            }];
+        }
+
         const safeInv = {
             ...newInv,
             purchaseDate: now,
-            totalInvested: Number(newInv.totalInvested || 0),
+            totalInvested: initialAmount,
             currentValue: Number(newInv.currentValue || 0),
-            history: newInv.history || [],
+            history: safeHistory,
             user_id: session.user.id
         };
 
