@@ -110,34 +110,39 @@ export const AIConseiller = {
         const scorePhrases = health.score >= 80 ? SCORE_PHRASES.high : health.score >= 60 ? SCORE_PHRASES.mid : SCORE_PHRASES.low;
         health.details = scorePhrases[seed % scorePhrases.length];
 
-        // --- GERAÇÃO DE INSIGHTS ---
+        // --- GERAÇÃO DE INSIGHTS (Lógica Determinística e Objetiva) ---
 
-        // 1. O Efeito Latte (Gastos Pequenos) - Random Chance based on seed
-        const smallPurchases = currentMonthTxs.filter(t => t.type === 'expense' && t.amount < 30).reduce((a, b) => a + b.amount, 0);
-        if (smallPurchases > 300 && (seed % 2 === 0)) {
+        // 1. O Efeito Latte (Gastos Pequenos Acumulados)
+        // Regra: Gastos < R$ 50 que somados representam mais de 5% da renda ou > R$ 400 absolutos
+        const smallPurchases = currentMonthTxs
+            .filter(t => t.type === 'expense' && t.amount < 50)
+            .reduce((a, b) => a + b.amount, 0);
+
+        if (smallPurchases > 400 || (income > 0 && smallPurchases > income * 0.05)) {
             insights.push({
                 id: 'latte-effect',
                 type: 'warning',
-                title: 'O "Efeito Cafézinho"',
-                message: `Você gastou R$ ${smallPurchases.toFixed(2)} em pequenas compras (< R$ 30).`,
+                title: 'Atenção aos Pequenos Gastos',
+                message: `Pequenas compras acumularam R$ ${smallPurchases.toFixed(2)} este mês.`,
                 icon: Coffee,
                 color: 'orange'
             });
         }
 
-        // 2. Análise de "Vício de Gastos" (Restaurantes/Delivery)
-        const dining = currentMonthTxs.filter(t =>
-            t.category.toLowerCase().includes('restaurante') ||
-            t.category.toLowerCase().includes('ifood') ||
-            t.category.toLowerCase().includes('lazer')
-        ).reduce((a, b) => a + b.amount, 0);
+        // 2. Análise de Estilo de Vida (Restaurantes/Lazer/Apps)
+        // Regra: Categorias de lazer > 20% da renda
+        const lifestyleKeywords = ['restaurante', 'ifood', 'uber', 'lazer', 'bar', 'cinema', 'streaming', 'assinatura', 'delivery'];
+        const lifestyleExpense = currentMonthTxs.filter(t => {
+            const cat = t.category.toLowerCase();
+            return lifestyleKeywords.some(k => cat.includes(k));
+        }).reduce((a, b) => a + b.amount, 0);
 
-        if (dining > income * 0.15 && income > 0) {
+        if (income > 0 && lifestyleExpense > income * 0.20) {
             insights.push({
-                id: 'dining-alert',
+                id: 'lifestyle-alert',
                 type: 'warning',
-                title: 'Dopamina Cara',
-                message: `Cuidado: ${((dining / income) * 100).toFixed(0)}% da sua renda foi para Lazer/Restaurantes.`,
+                title: 'Gastos com Estilo de Vida',
+                message: `Lazer e conveniência consumiram ${((lifestyleExpense / income) * 100).toFixed(0)}% da sua renda (R$ ${lifestyleExpense.toFixed(2)}).`,
                 icon: AlertTriangle,
                 color: 'rose'
             });
@@ -148,8 +153,8 @@ export const AIConseiller = {
             insights.push({
                 id: 'great-score',
                 type: 'success',
-                title: 'Domínio Financeiro 👑',
-                message: `Seu Score Financeiro é de ${health.score}/100. ${health.details}`,
+                title: 'Excelente Gestão! 👑',
+                message: `Seu Score Financeiro é ${health.score}/100. Você está construindo riqueza sólida.`,
                 icon: Award,
                 color: 'emerald'
             });
@@ -157,33 +162,52 @@ export const AIConseiller = {
             insights.push({
                 id: 'crisis-mode',
                 type: 'warning',
-                title: 'Alerta de Saúde Financeira',
-                message: `Score ${health.score}/100. ${health.details}`,
+                title: 'Atenção Necessária',
+                message: `Seu Score é ${health.score}/100. Revise seus gastos essenciais para equilibrar o orçamento.`,
                 icon: Zap,
                 color: 'rose'
             });
         }
 
-        // 4. Citação do Dia (Global - Mesma para todos no mesmo dia)
-        // Usa data como seed para consistência global
+        // 4. Metas em Risco (Novo Insight Objetivo)
+        const riskGoal = goals.find(g => {
+            if (!g.deadline) return false;
+            const deadline = new Date(g.deadline);
+            const remainingMonths = (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30);
+            const remainingAmount = g.targetAmount - g.currentAmount;
+            if (remainingMonths <= 0) return remainingAmount > 0; // Já venceu e não atingiu
+            // Se precisar economizar mais de 30% da renda mensal para atingir a meta, está em risco
+            return (remainingMonths > 0 && (remainingAmount / remainingMonths) > (income * 0.3));
+        });
+
+        if (riskGoal) {
+            insights.push({
+                id: 'goal-risk',
+                type: 'info',
+                title: 'Meta Desafiadora',
+                message: `A meta "${riskGoal.name}" exige atenção para ser atingida no prazo.`,
+                icon: Target,
+                color: 'blue'
+            });
+        }
+
+        // 5. Citação do Dia (Global)
         const daySeed = (today.getFullYear() * 1000) + (today.getMonth() * 31) + today.getDate();
         const quoteIndex = daySeed % DAILY_QUOTES.length;
         const dailyQuote = DAILY_QUOTES[quoteIndex];
 
-        // 5. Oportunidade de Rebalanceamento
+        // 6. Oportunidade de Investimento Inteligente
+        // Regra: Sobrou dinheiro (> 10% da receita ou > R$ 500) E o mês está acabando (> dia 20)
         const balance = income - expense;
-        if (balance > 1000) {
-            const lowAllocAsset = investments.sort((a, b) => (a.currentValue || 0) - (b.currentValue || 0))[0];
-            if (lowAllocAsset) {
-                insights.push({
-                    id: 'invest-opp',
-                    type: 'idea',
-                    title: 'Dinheiro na Mesa',
-                    message: `Sobrou R$ ${balance.toFixed(0)}. Inflação devora dinheiro parado. Aporte em "${lowAllocAsset.ticker}"?`,
-                    icon: TrendingUp,
-                    color: 'purple'
-                });
-            }
+        if (today.getDate() > 20 && balance > 500) {
+            insights.push({
+                id: 'invest-opp',
+                type: 'idea',
+                title: 'Excedente de Caixa',
+                message: `Você tem R$ ${balance.toFixed(2)} disponíveis no fim do mês. Que tal aportar em seus investimentos?`,
+                icon: TrendingUp,
+                color: 'purple'
+            });
         }
 
         return { insights, score: health, dailyQuote };
