@@ -378,9 +378,10 @@ function MainApp() {
                 const pMonth = parseInt(pParts[1]) - 1;
 
                 if (pMonth === dateFilter.month && pYear === dateFilter.year) {
-                    const totalHistory = (inv.history || []).reduce((acc, h) => acc + h.amount, 0);
-                    // Se Total > Soma do Histórico, a diferença é o aporte inicial
-                    const initial = (inv.totalInvested || 0) - totalHistory;
+                    // Soma apenas aportes (positivos) para calcular o que foi 'investido' versus 'registrado no histórico'
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + h.amount, 0);
+                    // Se Total Investido > Soma dos Aportes no Histórico, a diferença é o aporte inicial
+                    const initial = (inv.totalInvested || 0) - totalHistoryInvested;
                     if (initial > 0) initialOutflow = initial;
                 }
             }
@@ -419,8 +420,9 @@ function MainApp() {
             const accInvestmentOutflow = data.investments.reduce((sum, inv) => {
                 let initial = 0;
                 if (inv.purchaseDate && inv.purchaseDate <= eom) {
-                    const totalHistory = (inv.history || []).reduce((hSum, h) => hSum + h.amount, 0);
-                    initial = Math.max(0, (inv.totalInvested || 0) - totalHistory);
+                    // Ignora resgates (negativos) para não distorcer o cálculo do aporte inicial não registrado
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((hSum, h) => hSum + h.amount, 0);
+                    initial = Math.max(0, (inv.totalInvested || 0) - totalHistoryInvested);
                 }
                 // Considerar apenas aportes positivos no histórico acumulado para deduzir do caixa corretamente
                 const hist = (inv.history || []).filter(h => h.date <= eom && h.amount > 0).reduce((hSum, h) => hSum + h.amount, 0);
@@ -639,7 +641,7 @@ function MainApp() {
             type: 'income',
             category: 'Resgate de Investimento',
             date: localDate,
-            paymentMethod: 'Pix', // Default
+            paymentMethod: 'pix', // Default
             description: 'Resgate automático gerado pelo sistema'
         };
 
