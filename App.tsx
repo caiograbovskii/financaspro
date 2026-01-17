@@ -730,6 +730,68 @@ function MainApp() {
         });
     };
 
+    // Helper: Converte histórico de investimentos em transações de despesa para manter o saldo correto após exclusão
+    const solidifyInvestmentHistory = async (inv: InvestmentAsset) => {
+        const newTransactions: Transaction[] = [];
+
+        // 1. Converter Histórico de Aportes
+        if (inv.history && inv.history.length > 0) {
+            inv.history.forEach(h => {
+                if (h.amount > 0) {
+                    newTransactions.push({
+                        id: crypto.randomUUID(),
+                        user_id: session.user.id,
+                        title: `Auto-Aporte: ${inv.ticker}`,
+                        amount: Number(h.amount),
+                        type: 'expense',
+                        category: 'Investimentos',
+                        date: h.date,
+                        paymentMethod: 'pix',
+                        description: `Histórico preservado de ${inv.ticker}`
+                    });
+                }
+            });
+        }
+
+        // 2. Converter Saldo Inicial (sem histórico)
+        const totalHistory = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + Number(h.amount), 0);
+        const initialDifference = Number(inv.totalInvested || 0) - totalHistory;
+
+        if (initialDifference > 0) {
+            const dateStr = inv.purchaseDate ? inv.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0];
+            newTransactions.push({
+                id: crypto.randomUUID(),
+                user_id: session.user.id,
+                title: `Aporte Inicial: ${inv.ticker}`,
+                amount: initialDifference,
+                type: 'expense',
+                category: 'Investimentos',
+                date: dateStr,
+                paymentMethod: 'pix',
+                description: `Saldo inicial preservado de ${inv.ticker}`
+            });
+        }
+
+        // Persistir Transações
+        if (newTransactions.length > 0) {
+            if (isConfigured) {
+                const { error } = await supabase.from('transactions').insert(newTransactions.map(t => ({
+                    user_id: t.user_id,
+                    title: t.title,
+                    amount: t.amount,
+                    type: t.type,
+                    category: t.category,
+                    date: t.date,
+                    payment_method: t.paymentMethod,
+                    description: t.description
+                })));
+                if (error) console.error('Erro ao solidificar histórico:', error);
+            }
+            // Atualiza estado local
+            setData(prev => ({ ...prev, transactions: [...prev.transactions, ...newTransactions] }));
+        }
+    };
+
     const handleDeleteInvestment = (id: string) => {
         const inv = data.investments.find(i => i.id === id);
         if (!inv) return;
@@ -740,37 +802,30 @@ function MainApp() {
             setConfirmModal({
                 isOpen: true,
                 title: 'Excluir Investimento',
-                message: 'Isso excluirá o investimento e todas as transações de resgate associadas para manter o saldo correto.',
+                message: 'O investimento será excluído, mas seu histórico de aportes será convertido em "Despesas" para não alterar seu saldo contábil.',
                 type: 'danger',
                 onConfirm: async () => {
                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
-                    // CORREÇÃO: Excluir transações de 'Resgate' associadas para evitar saldo fantasma
-                    if (isConfigured) {
-                        try {
-                            // 1. Excluir transações de resgate
-                            const { error: txError } = await supabase.from('transactions').delete().eq('title', `Resgate: ${inv.ticker}`);
-                            if (txError) console.error('Erro ao limpar transações:', txError);
+                    try {
+                        // 1. Converter histórico em despesas (Solidificar)
+                        await solidifyInvestmentHistory(inv);
 
-                            // 2. Excluir investimento
+                        // 2. Excluir investimento APENAS (Manter Resgates)
+                        if (isConfigured) {
                             const { error } = await supabase.from('investments').delete().eq('id', id);
                             if (error) throw error;
-
-                            setData(prev => ({
-                                ...prev,
-                                investments: prev.investments.filter(i => i.id !== id),
-                                transactions: prev.transactions.filter(t => t.title !== `Resgate: ${inv.ticker}`)
-                            }));
-                            showToast('Investimento e movimentações excluídos.', 'success');
-                        } catch (e: any) {
-                            showToast('Erro ao excluir: ' + e.message, 'error');
                         }
-                    } else {
+
                         setData(prev => ({
                             ...prev,
-                            investments: prev.investments.filter(i => i.id !== id),
-                            transactions: prev.transactions.filter(t => t.title !== `Resgate: ${inv.ticker}`)
+                            investments: prev.investments.filter(i => i.id !== id)
+                            // NÃO filtramos transactions de resgate mais!
                         }));
+
+                        showToast('Investimento excluído. Histórico preservado.', 'success');
+                    } catch (e: any) {
+                        showToast('Erro ao excluir: ' + e.message, 'error');
                     }
                 }
             });
@@ -780,61 +835,19 @@ function MainApp() {
     const processSmartDelete = async (action: 'liquidate' | 'delete') => {
         if (!smartDeleteModal.inv) return;
         const { id, currentValue, ticker } = smartDeleteModal.inv;
+        const inv = smartDeleteModal.inv;
 
         try {
             if (action === 'liquidate') {
                 await handleInvestmentResgate(id, currentValue);
-                // Após liquidar, o saldo está zerado. Agora chamamos a deleção 'limpa'.
-                // Mas atenção: se liquidarmos, geramos um Resgate. Se deletarmos o investimento logo em seguida,
-                // a lógica de deleção vai APAGAR esse resgate se usarmos o mesmo ticker.
-                // Smart Delete 'Liquidate': O usuário quer o dinheiro no caixa e remover o card.
-                // Nesse caso NÃO devemos apagar a transação de resgate.
-
-                // Entretando, o usuário relatou bug de phantom balance se apagar.
-                // Se liquidar -> Dinheiro entra. Se apagar card -> Outflow some.
-                // Balance = Income - Expense - Outflow.
-                // Se Outflow (Custo) some, Balance sobe +Outflow.
-                // Para manter correto: Se 'Liquidate & Delete', devemos converter o 'Outflow Implícito' em 'Outflow Explícito' ou 'Expense'?
-                // Ou, simplesmente marcar o investimento como 'Arquivado'.
-
-                // SOLUÇÃO SIMPLIFICADA PARA O USUÁRIO AGORA:
-                // Se ele está liquidando e excluindo, ele quer o dinheiro.
-                // Se apagarmos o card, o 'InvestmentOutflow' (histórico) desaparece.
-                // Isso faz o saldo subir indevidamente.
-
-                // Como não temos 'Arquivar', vamos apenas excluir o card MAS manter o histórico de resgate?
-                // NÃO. Se mantivermos o resgate sem o outflow, o saldo explode.
-                // Se apagarmos o resgate, o dinheiro some do caixa.
-
-                // A única forma matemática de fechar a conta ao EXCLUIR O CARD (que remove o histórico de custo)
-                // é TAMBÉM remover todo histórico de lucro/entrada gerado por ele.
-                // Portanto, Liquidate & Delete deve significar: "Transforme tudo em dinheiro e depois esqueça que investi".
-                // Mas se esquecermos que investiu, de onde veio o lucro?
-
-                // CORREÇÃO CRÍTICA: Ao excluir, devemos apagar TUDO (Investimento + Resgates).
-                // Se o usuário quer o dinheiro no bolso, ele NÃO DEVE EXCLUIR O CARD, ele deve deixá-lo zerado.
-                // Mas o usuário QUER excluir o card zerado.
-                // Então, para não quebrar a conta, vou apagar os Resgates também.
-                // Assim: Outflow some (Saldo +X), Income some (Saldo -Y).
-                // Se X ~ Y (sem lucro), saldo não muda.
-                // Se teve lucro (Y > X), o lucro some. (O usuário perde registro do lucro).
-                // É o preço de excluir o histórico.
-
-                await supabase.from('transactions').delete().eq('title', `Resgate: ${ticker}`);
             }
 
-            if (isConfigured) {
-                // Remove transações antigas para garantir limpeza se for apenas Delete
-                if (action === 'delete') {
-                    await supabase.from('transactions').delete().eq('title', `Resgate: ${ticker}`);
-                }
+            // Ao excluir, solidifica o histórico de custo
+            await solidifyInvestmentHistory(inv);
 
+            if (isConfigured) {
                 await supabase.from('investments').delete().eq('id', id);
-                setData(prev => ({
-                    ...prev,
-                    investments: prev.investments.filter(i => i.id !== id),
-                    transactions: prev.transactions.filter(t => t.title !== `Resgate: ${ticker}`)
-                }));
+                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
             } else {
                 setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
             }
