@@ -8,7 +8,7 @@ import {
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList, PieChart as RePieChart, Pie, Legend, Tooltip
 } from 'recharts';
 import {
-    Transaction, WeeklyConfig, Goal, InvestmentAsset, CategoryConfig
+    ExpenseGroup, IncomeGroup, InvestmentGroup, CategoryConfig, InvestmentAsset, Goal, HistoryEntry // Adicionado HistoryEntry
 } from '../types';
 
 // Importando as ferramentas compartilhadas
@@ -360,19 +360,40 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
         let invToSave: InvestmentAsset;
 
         if (editingInv.id) {
-            // EDIT MODE: Preserva o totalInvested original (calculado pelo histórico ou anterior), atualiza apenas o currentValue
+            // EDIT MODE: 
+            // 1. Calcula a diferença (Rendimento ou Prejuízo)
+            const oldValue = Number(editingInv.currentValue || 0);
+            const diff = finalCurrent - oldValue;
+
+            let newHistory = editingInv.history || [];
+
+            // Se houve mudança no saldo, registra como Yield
+            if (diff !== 0) { // Tolerância de float pode ser necessária, mas JS lida ok com diferença exata aqui
+                const yieldEntry: HistoryEntry = {
+                    id: crypto.randomUUID(),
+                    date: new Date().toISOString().split('T')[0],
+                    amount: diff,
+                    description: diff > 0 ? 'Rendimento de Saldo' : 'Correção de Saldo (Negativa)',
+                    type: 'yield',
+                    userId: currentUserId
+                };
+                newHistory = [...newHistory, yieldEntry];
+            }
+
             invToSave = {
-                ...editingInv,
-                currentValue: finalCurrent
-                // totalInvested não é alterado pelo input, pois vem do histórico ou state
+                ...editingInv as InvestmentAsset,
+                currentValue: finalCurrent,
+                history: newHistory
+                // totalInvested não é alterado pelo input de saldo
             };
             onEditInvestment(invToSave);
         } else {
             // CREATE MODE: Total = Current = Input
             invToSave = {
-                ...editingInv,
+                ...editingInv as InvestmentAsset,
                 totalInvested: finalTotal,
-                currentValue: finalTotal
+                currentValue: finalTotal,
+                // O App.tsx já cria o histórico inicial "Aporte Inicial"
             };
             onAddInvestment(invToSave);
         }

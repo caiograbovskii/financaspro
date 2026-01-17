@@ -7,6 +7,7 @@ export interface HistoryEntry {
   date: string;
   amount: number;
   description?: string;
+  type?: 'contribution' | 'withdrawal' | 'yield' | 'correction';
   userId?: string;
 }
 

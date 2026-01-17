@@ -549,10 +549,11 @@ function MainApp() {
 
         if (initialAmount > 0 && safeHistory.length === 0) {
             safeHistory = [{
-                id: Date.now().toString(),
+                id: crypto.randomUUID(),
                 date: now.split('T')[0],
                 amount: initialAmount,
                 description: 'Aporte Inicial',
+                type: 'contribution',
                 userId: session.user.id
             }];
         }
@@ -620,33 +621,51 @@ function MainApp() {
         }
     };
 
-    const handleInvestmentAporte = async (invId: string, amount: number) => {
-        const inv = data.investments.find(i => i.id === invId);
+    const handleInvestmentAporte = async (id: string, amount: number) => {
+        const inv = data.investments.find(i => i.id === id);
         if (!inv) return;
+
+        const finalAmount = Number(amount);
         const nowStr = new Date().toISOString().split('T')[0];
 
-        const newHistoryItem = { id: Date.now().toString(), date: nowStr, amount, description: 'Aporte Rápido', userId: session.user.id };
-        const updatedInv = { ...inv, history: [...(inv.history || []), newHistoryItem], totalInvested: (inv.totalInvested || 0) + amount, currentValue: (inv.currentValue || 0) + amount };
-        handleEditInvestment(updatedInv);
+        // 1. Criar novo item de histórico
+        const newHistoryItem: HistoryEntry = {
+            id: crypto.randomUUID(),
+            date: nowStr,
+            amount: finalAmount,
+            description: 'Aporte Adicional',
+            type: 'contribution',
+            userId: session.user.id
+        };
 
-        // CRIAR TRANSAÇÃO DE DESPESA (FLUXO DE CAIXA)
+        const updatedHistory = [...(inv.history || []), newHistoryItem];
+        const newTotal = updatedHistory.reduce((acc, h) => acc + h.amount, 0);
+
+        // 2. Atualizar Investimento (Soma ao total e ao atual)
+        const updatedInv = {
+            ...inv,
+            totalInvested: newTotal,
+            currentValue: Number(inv.currentValue) + finalAmount,
+            history: updatedHistory
+        };
+
+        // O handleEditInvestment já sabe lidar com isso
+        await handleEditInvestment(updatedInv);
+
+        // 3. Gerar Transação de Despesa
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
             title: `Aporte: ${inv.ticker}`,
-            amount: amount,
+            amount: finalAmount,
             type: 'expense',
             category: 'Investimentos',
             date: nowStr,
             paymentMethod: 'pix',
-            description: `Aporte adicional em ${inv.ticker}`
+            description: `Aporte adicional de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
         };
-
-        if (isConfigured) {
-            await supabase.from('transactions').insert(newTx);
-        }
-        setData(prev => ({ ...prev, transactions: [...prev.transactions, newTx] }));
-        showToast('Aporte realizado!', 'success');
+        await handleSaveTransaction(newTx);
+        showToast('Aporte registrado com sucesso!', 'success');
     };
 
     // NOVO: Função para Sincronizar (Migrar) Investimentos antigos para o modelo de Transações
