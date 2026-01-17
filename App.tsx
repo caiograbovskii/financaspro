@@ -1338,4 +1338,3 @@ const KPICard = ({ title, value, icon: Icon, color }: any) => {
     );
 };
 
-export default App;
