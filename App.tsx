@@ -580,7 +580,7 @@ function MainApp() {
         };
 
         if (isConfigured) {
-            const { data: inserted } = await supabase.from('investments').insert({
+            const { data: inserted, error } = await supabase.from('investments').insert({
                 user_id: session.user.id,
                 ticker: safeInv.ticker,
                 category: safeInv.category,
@@ -590,6 +590,12 @@ function MainApp() {
                 history: safeInv.history
             }).select().single();
 
+            if (error) {
+                console.error('Erro ao adicionar investimento:', error);
+                showToast('Erro ao criar: ' + error.message, 'error');
+                return;
+            }
+
             // Salva Transação de Saída no Banco
             if (initialAmount > 0) {
                 await supabase.from('transactions').insert(newTx);
@@ -598,9 +604,10 @@ function MainApp() {
             if (inserted) {
                 setData(prev => ({
                     ...prev,
-                    investments: prev.investments.map(i => i.id === safeInv.id ? { ...i, id: inserted.id } : i),
+                    investments: [...prev.investments, { ...safeInv, id: inserted.id }],
                     transactions: initialAmount > 0 ? [...prev.transactions, newTx] : prev.transactions
                 }));
+                showToast('Investimento criado com sucesso!', 'success');
             }
         } else {
             const id = Date.now().toString();
@@ -609,6 +616,7 @@ function MainApp() {
                 investments: [...prev.investments, { ...safeInv, id }],
                 transactions: initialAmount > 0 ? [...prev.transactions, newTx] : prev.transactions
             }));
+            showToast('Investimento criado (Local).', 'success');
         }
     };
 
@@ -643,21 +651,17 @@ function MainApp() {
 
     // NOVO: Função para Sincronizar (Migrar) Investimentos antigos para o modelo de Transações
     const handleSyncInvestments = async () => {
-        // Itera sobre todos os investimentos e verifica se existem transações para eles.
-        // Senão, cria transações retroativas.
+        console.log('Iniciando sincronização...');
         let newTxs: Transaction[] = [];
 
         data.investments.forEach(inv => {
             (inv.history || []).forEach(h => {
                 if (h.amount > 0) {
-                    // Check if tx exists (inexact check by date and amount/ticker hint)
-                    // Para simplificar, vamos assumir que se o usuário clicou em 'Sincronizar', ele quer gerar para todos que não tem.
-                    // Mas podemos duplicar. O ideal é marcar flag no history? Não temos.
-                    // Vamos criar apenas se NÃO existir transação com mesmo titulo E data E valor.
+                    // Verifica duplicidade exata
                     const exists = data.transactions.some(t =>
                         t.amount === Number(h.amount) &&
                         t.date === h.date &&
-                        (t.title.includes(inv.ticker))
+                        (t.title === `Auto-Sync: ${inv.ticker}` || t.title.includes(inv.ticker))
                     );
 
                     if (!exists) {
@@ -677,9 +681,11 @@ function MainApp() {
             });
         });
 
+        console.log(`Encontradas ${newTxs.length} novas transações para sincronizar.`);
+
         if (newTxs.length > 0) {
             if (isConfigured) {
-                await supabase.from('transactions').insert(newTxs.map(t => ({
+                const { error } = await supabase.from('transactions').insert(newTxs.map(t => ({
                     user_id: t.user_id,
                     title: t.title,
                     amount: t.amount,
@@ -689,18 +695,22 @@ function MainApp() {
                     payment_method: t.paymentMethod,
                     description: t.description
                 })));
+                if (error) {
+                    console.error('Erro no sync:', error);
+                    showToast('Erro ao sincronizar: ' + error.message, 'error');
+                    return;
+                }
             }
             const allNew = [...data.transactions, ...newTxs];
             setData(prev => ({ ...prev, transactions: allNew }));
-            showToast(`${newTxs.length} transações de histórico geradas!`, 'success');
+            showToast(`${newTxs.length} transações geradas e sincronizadas!`, 'success');
         } else {
-            showToast('Tudo sincronizado!', 'success');
+            showToast('O saldo já está sincronizado!', 'success');
         }
     };
 
     const handleSaveTransaction = async (tx: Partial<Transaction>) => {
         const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description };
-
         if (isConfigured) {
             if (editingTransaction) {
                 await supabase.from('transactions').update(txData).eq('id', editingTransaction.id);
