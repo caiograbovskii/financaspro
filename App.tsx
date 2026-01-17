@@ -4,7 +4,7 @@ import {
     Briefcase, Plus, ChevronLeft, ChevronRight,
     TrendingUp, TrendingDown, Wallet, Settings, LogOut, X,
     Edit2, Trash2, ArrowUpRight, AlertTriangle, Trophy, Calendar, Info, Menu,
-    RefreshCcw, MessageSquare, Send, Star, User, Brain, Quote
+    RefreshCcw, MessageSquare, Send, Star, User, Brain, Quote, Check
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, CartesianGrid, LabelList, ResponsiveContainer,
@@ -655,18 +655,32 @@ function MainApp() {
         let newTxs: Transaction[] = [];
 
         data.investments.forEach(inv => {
-            (inv.history || []).forEach(h => {
+            const hasHistory = inv.history && inv.history.length > 0;
+            let historyToProcess = hasHistory ? inv.history : [];
+
+            // Caso especial: Investimento antigo SEM histórico, mas COM total investido > 0
+            if (!hasHistory && (inv.totalInvested || 0) > 0) {
+                historyToProcess.push({
+                    id: `fallback-${inv.id}`,
+                    date: inv.purchaseDate?.split('T')[0] || new Date().toISOString().split('T')[0],
+                    amount: Number(inv.totalInvested),
+                    description: 'Saldo Inicial (Sincronizado)',
+                    userId: session.user.id
+                });
+                console.log(`Fallback de histórico criado para: ${inv.ticker} - R$ ${inv.totalInvested}`);
+            }
+
+            (historyToProcess || []).forEach(h => {
                 if (h.amount > 0) {
                     // Verifica duplicidade (Simplificado)
                     const exists = data.transactions.some(t =>
                         t.amount === Number(h.amount) &&
                         t.date === h.date &&
-                        t.type === 'expense'
-                        // Removido check rígido de nome, pois pode variar. 
-                        // Se data, valor e tipo batem, assumimos que é o mesmo aporte.
+                        t.title.includes(inv.ticker)
                     );
 
                     if (!exists) {
+                        console.log(`Criando transação para: ${inv.ticker} | Data: ${h.date} | Valor: ${h.amount}`);
                         newTxs.push({
                             id: crypto.randomUUID(),
                             user_id: session.user.id,
@@ -678,6 +692,8 @@ function MainApp() {
                             paymentMethod: 'pix',
                             description: `Sincronização de saldo para ${inv.ticker}`
                         });
+                    } else {
+                        console.log(`Ignorado (já existe): ${inv.ticker} | R$ ${h.amount}`);
                     }
                 }
             });
