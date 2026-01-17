@@ -358,13 +358,41 @@ function MainApp() {
         const income = filteredTransactions.filter(t => t.type === 'income').reduce((sum, t) => sum + t.amount, 0);
         const expense = filteredTransactions.filter(t => t.type === 'expense').reduce((sum, t) => sum + t.amount, 0);
 
+        // CORREÇÃO: Calcular fluxo de caixa de saída para investimentos no período
+        const investmentOutflow = data.investments.reduce((sum, inv) => {
+            // 1. Histórico no período
+            const historySum = (inv.history || []).reduce((hSum, h) => {
+                const parts = h.date.split('-');
+                const hYear = parseInt(parts[0]);
+                const hMonth = parseInt(parts[1]) - 1;
+                return (hMonth === dateFilter.month && hYear === dateFilter.year) ? hSum + h.amount : hSum;
+            }, 0);
+
+            // 2. Compra inicial no período (Se purchaseDate for do mês filtrado)
+            let initialOutflow = 0;
+            if (inv.purchaseDate) {
+                const pParts = inv.purchaseDate.split('T')[0].split('-');
+                const pYear = parseInt(pParts[0]);
+                const pMonth = parseInt(pParts[1]) - 1;
+
+                if (pMonth === dateFilter.month && pYear === dateFilter.year) {
+                    const totalHistory = (inv.history || []).reduce((acc, h) => acc + h.amount, 0);
+                    // Se Total > Soma do Histórico, a diferença é o aporte inicial
+                    const initial = (inv.totalInvested || 0) - totalHistory;
+                    if (initial > 0) initialOutflow = initial;
+                }
+            }
+
+            return sum + historySum + initialOutflow;
+        }, 0);
+
         const totalInvestments = data.investments.reduce((sum, inv) => sum + (inv.currentValue || 0), 0);
         const totalUnlinkedGoals = data.goals
             .filter(g => (!g.linkedInvestmentIds || g.linkedInvestmentIds.length === 0))
             .reduce((sum, g) => sum + (g.currentAmount || 0), 0);
 
         return {
-            income, expense, balance: income - expense,
+            income, expense, balance: income - expense - investmentOutflow,
             invested: totalInvestments + totalUnlinkedGoals
         };
     }, [filteredTransactions, data.investments, data.goals]);
@@ -384,7 +412,19 @@ function MainApp() {
 
             const accIncome = data.transactions.filter(t => t.type === 'income' && t.date <= eom).reduce((a, b) => a + b.amount, 0);
             const accExpense = data.transactions.filter(t => t.type === 'expense' && t.date <= eom).reduce((a, b) => a + b.amount, 0);
-            const balance = accIncome - accExpense;
+
+            // CORREÇÃO: Calcular fluxo acumulado para investimentos até a data
+            const accInvestmentOutflow = data.investments.reduce((sum, inv) => {
+                let initial = 0;
+                if (inv.purchaseDate && inv.purchaseDate <= eom) {
+                    const totalHistory = (inv.history || []).reduce((hSum, h) => hSum + h.amount, 0);
+                    initial = Math.max(0, (inv.totalInvested || 0) - totalHistory);
+                }
+                const hist = (inv.history || []).filter(h => h.date <= eom).reduce((hSum, h) => hSum + h.amount, 0);
+                return sum + initial + hist;
+            }, 0);
+
+            const balance = accIncome - accExpense - accInvestmentOutflow;
 
             const invested = data.investments
                 .filter(i => !i.purchaseDate || i.purchaseDate <= eom)
@@ -395,7 +435,7 @@ function MainApp() {
                 date: eom,
                 Caixa: balance,
                 Investimentos: invested,
-                Total: balance + invested
+                Total: balance + invested // Total Patrimônio = Caixa + Investimentos
             };
         });
     }, [data.transactions, data.investments]);
@@ -1125,13 +1165,17 @@ function MainApp() {
 function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
     const today = new Date().toISOString().split('T')[0];
     const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
+    const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
 
     const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
 
     const handleSave = () => {
         if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
         if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
-        handleSaveTransaction(form); // Sem args extras
+
+        // Parse final amount
+        const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
+        handleSaveTransaction({ ...form, amount: finalAmount });
     };
 
     return (
@@ -1147,7 +1191,7 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
             <div className="space-y-4">
                 <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
                 <div className="grid grid-cols-2 gap-4">
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.amount || ''} onChange={e => setForm({ ...form, amount: parseFloat(e.target.value) })} placeholder="R$ 0,00" /></div>
+                    <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
                     <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
                 </div>
                 <div><label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>

@@ -176,6 +176,16 @@ interface GoalsProps {
 export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal, onEditGoal, onDeleteGoal, readOnly, userMap, currentUserId }) => {
     const [isAdding, setIsAdding] = useState(false);
     const [editingGoal, setEditingGoal] = useState<Partial<Goal>>({});
+    const [amountStrings, setAmountStrings] = useState({ target: '', current: '' });
+
+    const openGoalModal = (g: Partial<Goal>) => {
+        setEditingGoal(g);
+        setAmountStrings({
+            target: g.targetAmount?.toString() || '',
+            current: g.currentAmount?.toString() || ''
+        });
+        setIsAdding(true);
+    };
     const totalGoals = useMemo(() => goals.reduce((acc, g) => acc + (g.currentAmount || 0), 0), [goals]);
 
     const calculateMonthly = () => {
@@ -206,7 +216,17 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
     const monthlyContribution = calculateMonthly();
 
     const handleSave = () => {
-        const goalToSave = { ...editingGoal, linkedInvestmentIds: editingGoal.linkedInvestmentIds || [] } as Goal;
+        // Parse values
+        const finalTarget = parseFloat(amountStrings.target.replace(',', '.')) || 0;
+        const finalCurrent = parseFloat(amountStrings.current.replace(',', '.')) || 0;
+
+        const goalToSave = {
+            ...editingGoal,
+            targetAmount: finalTarget,
+            currentAmount: finalCurrent,
+            linkedInvestmentIds: editingGoal.linkedInvestmentIds || []
+        } as Goal;
+
         if (editingGoal.id) onEditGoal(goalToSave);
         else onAddGoal(goalToSave);
         setIsAdding(false);
@@ -221,7 +241,9 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
             newIds = [...currentIds, invId];
         }
         const newTotal = investments.filter(inv => newIds.includes(inv.id)).reduce((sum, inv) => sum + (inv.currentValue || 0), 0);
+        // Atualiza tanto numerico quanto string para consistencia
         setEditingGoal({ ...editingGoal, linkedInvestmentIds: newIds, currentAmount: newIds.length > 0 ? newTotal : (editingGoal.currentAmount || 0) });
+        if (newIds.length > 0) setAmountStrings(prev => ({ ...prev, current: newTotal.toString() }));
     };
 
     const hasLinkedInvestments = (editingGoal.linkedInvestmentIds?.length || 0) > 0;
@@ -231,7 +253,7 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
             <div className="flex justify-between items-center">
                 <div><h2 className="text-sm font-bold text-slate-500 uppercase tracking-wide">Total Acumulado</h2><div className="text-3xl font-bold text-slate-800">R$ {totalGoals.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</div></div>
                 <div className="flex gap-2">
-                    {!readOnly && <button onClick={() => { setEditingGoal({ linkedInvestmentIds: [] }); setIsAdding(true); }} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg shadow-md transition font-bold"><Plus size={20} /> Nova Meta</button>}
+                    {!readOnly && <button onClick={() => openGoalModal({ linkedInvestmentIds: [] })} className="flex items-center gap-2 bg-amber-500 hover:bg-amber-600 text-white px-5 py-2.5 rounded-lg shadow-md transition font-bold"><Plus size={20} /> Nova Meta</button>}
                 </div>
             </div>
 
@@ -243,8 +265,8 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                             <h3 className="font-bold text-slate-800 mb-6 text-xl text-center">{editingGoal.id ? 'Editar Meta' : 'Nova Meta'}</h3>
                             <div className="space-y-4">
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Nome</label><input className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.name || ''} onChange={e => setEditingGoal({ ...editingGoal, name: e.target.value })} /></div>
-                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Alvo</label><input type="number" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.targetAmount || ''} onChange={e => setEditingGoal({ ...editingGoal, targetAmount: Number(e.target.value) })} /></div>
-                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Atual {hasLinkedInvestments && '(Calculado)'}</label><input type="number" disabled={hasLinkedInvestments} className={`w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-amber-500 transition ${hasLinkedInvestments ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-900'}`} value={editingGoal.currentAmount || ''} onChange={e => setEditingGoal({ ...editingGoal, currentAmount: Number(e.target.value) })} /></div>
+                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Alvo</label><input type="number" step="0.01" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={amountStrings.target} onChange={e => setAmountStrings({ ...amountStrings, target: e.target.value })} /></div>
+                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Atual {hasLinkedInvestments && '(Calculado)'}</label><input type="number" step="0.01" disabled={hasLinkedInvestments} className={`w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-amber-500 transition ${hasLinkedInvestments ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-900'}`} value={amountStrings.current} onChange={e => setAmountStrings({ ...amountStrings, current: e.target.value })} /></div>
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Data Limite (Opcional)</label><input type="date" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.deadline || ''} onChange={e => setEditingGoal({ ...editingGoal, deadline: e.target.value })} /></div>
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Vincular Investimentos (Múltiplos)</label>
                                     <div className="border border-slate-200 rounded-xl p-2 max-h-40 overflow-y-auto custom-scroll bg-slate-50">
@@ -275,9 +297,9 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                     const suggestion = getMonthlySuggestion(goal);
 
                     return (
-                        <Card key={goal.id} onClick={() => { if (!readOnly) { setEditingGoal(goal); setIsAdding(true); } }} readOnly={readOnly} className="relative overflow-hidden group border-amber-100 hover:border-amber-300 transition-colors">
+                        <Card key={goal.id} onClick={() => { if (!readOnly) openGoalModal(goal); }} readOnly={readOnly} className="relative overflow-hidden group border-amber-100 hover:border-amber-300 transition-colors">
                             <div className="absolute top-3 right-3 z-20 flex gap-2 items-center"><UserDot userId={goal.user_id} userMap={userMap} /></div>
-                            <div className="flex justify-between items-start mb-2 relative z-10 pt-2"><h3 className="font-bold text-lg text-slate-800">{goal.name}</h3>{!readOnly && (<div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); setEditingGoal(goal); setIsAdding(true); }} className="text-slate-300 hover:text-amber-500 transition p-2"><Edit2 size={16} className="pointer-events-none" /></button><button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteGoal(goal.id); }} className="relative z-50 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"><Trash2 size={18} className="pointer-events-none" /></button></div>)}</div>
+                            <div className="flex justify-between items-start mb-2 relative z-10 pt-2"><h3 className="font-bold text-lg text-slate-800">{goal.name}</h3>{!readOnly && (<div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); openGoalModal(goal); }} className="text-slate-300 hover:text-amber-500 transition p-2"><Edit2 size={16} className="pointer-events-none" /></button><button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteGoal(goal.id); }} className="relative z-50 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"><Trash2 size={18} className="pointer-events-none" /></button></div>)}</div>
                             <div className="bg-slate-50 p-3 rounded-lg mb-4 border border-slate-100"><div className="flex justify-between text-sm mb-1"><span className="text-slate-500">Atual</span><span className="font-bold text-slate-700">R$ {(goal.currentAmount || 0).toLocaleString()}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Alvo</span><span className="font-bold text-slate-700">R$ {(goal.targetAmount || 0).toLocaleString()}</span></div></div>
                             <div className="relative pt-1"><div className="overflow-hidden h-2 mb-2 text-xs flex rounded bg-amber-100"><div style={{ width: `${progress}%` }} className="bg-amber-500 transition-all duration-1000"></div></div>{suggestion !== null && (<div className="text-xs text-center font-bold text-amber-600">Sugestão: R$ {suggestion.toFixed(2)} / mês</div>)}</div>
                         </Card>
@@ -314,6 +336,16 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
     const firstItem = config.investment[firstGroup]?.[0] || 'CDB';
 
     const [editingInv, setEditingInv] = useState<Partial<InvestmentAsset>>({ category: firstItem, history: [] });
+    const [invStrings, setInvStrings] = useState({ total: '', current: '' });
+
+    const openInvModal = (inv: Partial<InvestmentAsset>) => {
+        setEditingInv(inv);
+        setInvStrings({
+            total: inv.totalInvested?.toString() || '',
+            current: inv.currentValue?.toString() || ''
+        });
+        setShowForm(true);
+    };
     const [aporteMode, setAporteMode] = useState<string | null>(null);
     const [aporteValue, setAporteValue] = useState('');
 
@@ -321,10 +353,22 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 
     // CORREÇÃO: Verifica se é edição ou adição para evitar duplicação
     const handleSave = () => {
+        const finalTotal = parseFloat(invStrings.total.replace(',', '.')) || 0;
+        const finalCurrent = parseFloat(invStrings.current.replace(',', '.')) || 0;
+
+        // Se current value for 0 mas total invested tiver valor e for novo, assume current = total (facilita entrada)
+        const adjustedCurrent = (finalCurrent === 0 && finalTotal > 0 && !editingInv.id) ? finalTotal : finalCurrent;
+
+        const invToSave = {
+            ...editingInv,
+            totalInvested: finalTotal,
+            currentValue: adjustedCurrent
+        } as InvestmentAsset;
+
         if (editingInv.id) {
-            onEditInvestment(editingInv as InvestmentAsset);
+            onEditInvestment(invToSave);
         } else {
-            onAddInvestment(editingInv as InvestmentAsset);
+            onAddInvestment(invToSave);
         }
         setShowForm(false);
     };
@@ -370,7 +414,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 {showAnalysis ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </button>
 
-                            <button onClick={() => { setEditingInv({ category: firstItem, history: [] }); setShowForm(true); }} className="bg-slate-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow-lg shadow-slate-200 transition">
+                            <button onClick={() => openInvModal({ category: firstItem, history: [] })} className="bg-slate-900 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold shadow-lg shadow-slate-200 transition">
                                 <Plus size={18} />
                                 <span className="hidden sm:inline">Novo Ativo</span>
                             </button>
@@ -429,7 +473,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 <UserDot userId={inv.user_id} userMap={userMap} />
                                 {!readOnly && (
                                     <>
-                                        <button onClick={(e) => { e.stopPropagation(); setEditingInv(inv); setShowForm(true); }} className="text-slate-400 hover:text-indigo-500 p-1">
+                                        <button onClick={(e) => { e.stopPropagation(); openInvModal(inv); }} className="text-slate-400 hover:text-indigo-500 p-1">
                                             <Edit2 size={14} />
                                         </button>
                                         <button
@@ -504,25 +548,28 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 </select>
                             </div>
                             <div className="grid grid-cols-2 gap-2">
-                                <div><label className="text-[10px] uppercase font-bold text-slate-400">Total Investido</label><input type="number" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={editingInv.totalInvested || ''} onChange={e => setEditingInv({ ...editingInv, totalInvested: Number(e.target.value) })} /></div>
-                                <div><label className="text-[10px] uppercase font-bold text-slate-400">Valor Atual</label><input type="number" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={editingInv.currentValue || ''} onChange={e => setEditingInv({ ...editingInv, currentValue: Number(e.target.value) })} /></div>
-                            </div>
+                                <div className="grid grid-cols-2 gap-2">
+                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Total Investido</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.total} onChange={e => setInvStrings({ ...invStrings, total: e.target.value })} /></div>
+                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Valor Atual</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.current} onChange={e => setInvStrings({ ...invStrings, current: e.target.value })} /></div>
+                                </div>
 
-                            {editingInv.id && (
-                                <HistoryManager
-                                    history={editingInv.history || []}
-                                    onChange={(h) => {
-                                        const newTotal = h.reduce((acc, item) => acc + item.amount, 0);
-                                        setEditingInv({ ...editingInv, history: h, totalInvested: newTotal });
-                                    }}
-                                    currentUserId={currentUserId}
-                                    userMap={userMap}
-                                />
-                            )}
+                                {editingInv.id && (
+                                    <HistoryManager
+                                        history={editingInv.history || []}
+                                        onChange={(h) => {
+                                            const newTotal = h.reduce((acc, item) => acc + item.amount, 0);
+                                            setEditingInv({ ...editingInv, history: h, totalInvested: newTotal });
+                                            setInvStrings(prev => ({ ...prev, total: newTotal.toString() }));
+                                        }}
+                                        currentUserId={currentUserId}
+                                        userMap={userMap}
+                                    />
+                                )}
 
-                            <div className="pt-2 flex gap-2">
-                                {editingInv.id && <button onClick={() => { if (confirm('Excluir?')) { onDeleteInvestment(editingInv.id!); setShowForm(false); } }} className="px-4 py-2 text-rose-500 font-bold border border-rose-100 hover:bg-rose-50 rounded-lg">Excluir</button>}
-                                <button onClick={handleSave} className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold shadow-lg">Salvar</button>
+                                <div className="pt-2 flex gap-2">
+                                    {editingInv.id && <button onClick={() => { if (confirm('Excluir?')) { onDeleteInvestment(editingInv.id!); setShowForm(false); } }} className="px-4 py-2 text-rose-500 font-bold border border-rose-100 hover:bg-rose-50 rounded-lg">Excluir</button>}
+                                    <button onClick={handleSave} className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold shadow-lg">Salvar</button>
+                                </div>
                             </div>
                         </div>
                     </div>
