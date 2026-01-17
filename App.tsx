@@ -647,7 +647,7 @@ function MainApp() {
 
         // 2. Gerar Transação de Receita
         const newTx: Transaction = {
-            id: Date.now().toString() + '_resgate',
+            id: crypto.randomUUID(), // Gera UUID válido para o Supabase
             user_id: session.user.id,
             title: `Resgate: ${inv.ticker}`,
             amount: finalAmount,
@@ -719,7 +719,10 @@ function MainApp() {
                 if (isConfigured) {
                     const { error } = await supabase.from('transactions').delete().eq('id', id);
                     if (error) showToast('Erro ao excluir: ' + error.message, 'error');
-                    else loadData(session.user.id);
+                    else {
+                        showToast('Transação excluída', 'success');
+                        loadData(session.user.id);
+                    }
                 } else {
                     setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
                 }
@@ -737,15 +740,37 @@ function MainApp() {
             setConfirmModal({
                 isOpen: true,
                 title: 'Excluir Investimento',
-                message: 'Tem certeza que deseja remover este investimento permanentemente?',
+                message: 'Isso excluirá o investimento e todas as transações de resgate associadas para manter o saldo correto.',
                 type: 'danger',
                 onConfirm: async () => {
                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
+
+                    // CORREÇÃO: Excluir transações de 'Resgate' associadas para evitar saldo fantasma
                     if (isConfigured) {
-                        await supabase.from('investments').delete().eq('id', id);
-                        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                        try {
+                            // 1. Excluir transações de resgate
+                            const { error: txError } = await supabase.from('transactions').delete().eq('title', `Resgate: ${inv.ticker}`);
+                            if (txError) console.error('Erro ao limpar transações:', txError);
+
+                            // 2. Excluir investimento
+                            const { error } = await supabase.from('investments').delete().eq('id', id);
+                            if (error) throw error;
+
+                            setData(prev => ({
+                                ...prev,
+                                investments: prev.investments.filter(i => i.id !== id),
+                                transactions: prev.transactions.filter(t => t.title !== `Resgate: ${inv.ticker}`)
+                            }));
+                            showToast('Investimento e movimentações excluídos.', 'success');
+                        } catch (e: any) {
+                            showToast('Erro ao excluir: ' + e.message, 'error');
+                        }
                     } else {
-                        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                        setData(prev => ({
+                            ...prev,
+                            investments: prev.investments.filter(i => i.id !== id),
+                            transactions: prev.transactions.filter(t => t.title !== `Resgate: ${inv.ticker}`)
+                        }));
                     }
                 }
             });
@@ -754,19 +779,71 @@ function MainApp() {
 
     const processSmartDelete = async (action: 'liquidate' | 'delete') => {
         if (!smartDeleteModal.inv) return;
-        const { id, currentValue } = smartDeleteModal.inv;
+        const { id, currentValue, ticker } = smartDeleteModal.inv;
 
-        if (action === 'liquidate') {
-            await handleInvestmentResgate(id, currentValue);
+        try {
+            if (action === 'liquidate') {
+                await handleInvestmentResgate(id, currentValue);
+                // Após liquidar, o saldo está zerado. Agora chamamos a deleção 'limpa'.
+                // Mas atenção: se liquidarmos, geramos um Resgate. Se deletarmos o investimento logo em seguida,
+                // a lógica de deleção vai APAGAR esse resgate se usarmos o mesmo ticker.
+                // Smart Delete 'Liquidate': O usuário quer o dinheiro no caixa e remover o card.
+                // Nesse caso NÃO devemos apagar a transação de resgate.
+
+                // Entretando, o usuário relatou bug de phantom balance se apagar.
+                // Se liquidar -> Dinheiro entra. Se apagar card -> Outflow some.
+                // Balance = Income - Expense - Outflow.
+                // Se Outflow (Custo) some, Balance sobe +Outflow.
+                // Para manter correto: Se 'Liquidate & Delete', devemos converter o 'Outflow Implícito' em 'Outflow Explícito' ou 'Expense'?
+                // Ou, simplesmente marcar o investimento como 'Arquivado'.
+
+                // SOLUÇÃO SIMPLIFICADA PARA O USUÁRIO AGORA:
+                // Se ele está liquidando e excluindo, ele quer o dinheiro.
+                // Se apagarmos o card, o 'InvestmentOutflow' (histórico) desaparece.
+                // Isso faz o saldo subir indevidamente.
+
+                // Como não temos 'Arquivar', vamos apenas excluir o card MAS manter o histórico de resgate?
+                // NÃO. Se mantivermos o resgate sem o outflow, o saldo explode.
+                // Se apagarmos o resgate, o dinheiro some do caixa.
+
+                // A única forma matemática de fechar a conta ao EXCLUIR O CARD (que remove o histórico de custo)
+                // é TAMBÉM remover todo histórico de lucro/entrada gerado por ele.
+                // Portanto, Liquidate & Delete deve significar: "Transforme tudo em dinheiro e depois esqueça que investi".
+                // Mas se esquecermos que investiu, de onde veio o lucro?
+
+                // CORREÇÃO CRÍTICA: Ao excluir, devemos apagar TUDO (Investimento + Resgates).
+                // Se o usuário quer o dinheiro no bolso, ele NÃO DEVE EXCLUIR O CARD, ele deve deixá-lo zerado.
+                // Mas o usuário QUER excluir o card zerado.
+                // Então, para não quebrar a conta, vou apagar os Resgates também.
+                // Assim: Outflow some (Saldo +X), Income some (Saldo -Y).
+                // Se X ~ Y (sem lucro), saldo não muda.
+                // Se teve lucro (Y > X), o lucro some. (O usuário perde registro do lucro).
+                // É o preço de excluir o histórico.
+
+                await supabase.from('transactions').delete().eq('title', `Resgate: ${ticker}`);
+            }
+
+            if (isConfigured) {
+                // Remove transações antigas para garantir limpeza se for apenas Delete
+                if (action === 'delete') {
+                    await supabase.from('transactions').delete().eq('title', `Resgate: ${ticker}`);
+                }
+
+                await supabase.from('investments').delete().eq('id', id);
+                setData(prev => ({
+                    ...prev,
+                    investments: prev.investments.filter(i => i.id !== id),
+                    transactions: prev.transactions.filter(t => t.title !== `Resgate: ${ticker}`)
+                }));
+            } else {
+                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+            }
+            showToast('Investimento removido.', 'success');
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao processar.', 'error');
         }
 
-        // Proceed to delete
-        if (isConfigured) {
-            await supabase.from('investments').delete().eq('id', id);
-            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-        } else {
-            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-        }
         setSmartDeleteModal({ isOpen: false, inv: null });
     };
 
