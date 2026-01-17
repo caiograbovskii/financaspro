@@ -196,17 +196,36 @@ export const AIConseiller = {
         const quoteIndex = daySeed % DAILY_QUOTES.length;
         const dailyQuote = DAILY_QUOTES[quoteIndex];
 
-        // 6. Oportunidade de Investimento Inteligente
-        // Regra: Sobrou dinheiro (> 10% da receita ou > R$ 500) E o mês está acabando (> dia 20)
+        // 6. Oportunidade de Investimento Inteligente (Sem restrição de dia > 20, agora > dia 5)
         const balance = income - expense;
-        if (today.getDate() > 20 && balance > 500) {
+        if (today.getDate() > 5 && balance > 500) {
             insights.push({
                 id: 'invest-opp',
                 type: 'idea',
                 title: 'Excedente de Caixa',
-                message: `Você tem R$ ${balance.toFixed(2)} disponíveis no fim do mês. Que tal aportar em seus investimentos?`,
+                message: `Você tem R$ ${balance.toFixed(2)} disponíveis. Que tal aportar em seus investimentos?`,
                 icon: TrendingUp,
                 color: 'purple'
+            });
+        }
+
+        // 7. Insight Diário de Evolução (Novo)
+        const dailyTips = [
+            "Pague a si mesmo primeiro: Separe seu investimento assim que receber.",
+            "Evite compras por impulso: Espere 24h antes de comprar algo não essencial.",
+            "Revise suas assinaturas mensais. Você usa tudo o que paga?",
+            "Acompanhe suas metas semanalmente para não perder o foco.",
+            "Crie um fundo de reserva para imprevistos e durma tranquilo."
+        ];
+        // Usa o seed do dia para escolher uma dica
+        if (insights.length < 3) { // Só mostra se não houver muitos alertas críticos
+            insights.push({
+                id: 'daily-tip',
+                type: 'info',
+                title: 'Dica do Dia 💡',
+                message: dailyTips[daySeed % dailyTips.length],
+                icon: Brain,
+                color: 'indigo'
             });
         }
 

@@ -318,6 +318,7 @@ interface InvestProps {
     onEditInvestment: (asset: InvestmentAsset) => void;
     onDeleteInvestment: (id: string) => void;
     onAportar: (id: string, amount: number) => void;
+    onResgatar?: (id: string, amount: number) => void;
     readOnly?: boolean;
     userMap?: Record<string, string>;
     currentUserId?: string;
@@ -325,7 +326,7 @@ interface InvestProps {
 }
 
 export const InvestmentPortfolio: React.FC<InvestProps> = ({
-    investments, categories, onAddInvestment, onEditInvestment, onDeleteInvestment, onAportar,
+    investments, categories, onAddInvestment, onEditInvestment, onDeleteInvestment, onAportar, onResgatar,
     readOnly, userMap, currentUserId, config
 }) => {
     const [showForm, setShowForm] = useState(false);
@@ -517,9 +518,32 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 ) : (
                                     <div className="flex gap-2">
                                         {!readOnly && (
-                                            <button onClick={() => { setAporteMode(inv.id); setAporteValue(''); }} className={`w-full py-2 text-xs font-bold text-white rounded-lg transition shadow-sm ${isPiggy ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}>
-                                                Aportar
-                                            </button>
+                                            <>
+                                                <button onClick={() => { setAporteMode(inv.id); setAporteValue(''); }} className={`flex-1 py-1.5 text-xs font-bold text-white rounded-lg transition shadow-sm ${isPiggy ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}>
+                                                    Aportar
+                                                </button>
+                                                {/* Botão de Resgate */}
+                                                <button
+                                                    onClick={() => {
+                                                        const val = prompt(`Quanto deseja resgatar de ${inv.ticker}? (Máx: R$ ${inv.currentValue})`);
+                                                        if (val) {
+                                                            const numVal = parseFloat(val.replace(',', '.'));
+                                                            if (!isNaN(numVal) && numVal > 0 && numVal <= inv.currentValue) {
+                                                                if (confirm(`Confirmar resgate de R$ ${numVal.toFixed(2)}?\nIsso irá gerar uma receita no seu saldo.`)) {
+                                                                    // Usa prop onResgatar se disponível, senão fallback (apenas para type safety por enquanto)
+                                                                    // @ts-ignore
+                                                                    if (onResgatar) onResgatar(inv.id, numVal);
+                                                                }
+                                                            } else if (numVal > inv.currentValue) {
+                                                                alert('Valor indisponível para resgate.');
+                                                            }
+                                                        }
+                                                    }}
+                                                    className="px-3 py-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-rose-500 transition"
+                                                >
+                                                    Resgatar
+                                                </button>
+                                            </>
                                         )}
                                     </div>
                                 )}
