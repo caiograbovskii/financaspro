@@ -356,18 +356,23 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
         const finalTotal = parseFloat(invStrings.total.replace(',', '.')) || 0;
         const finalCurrent = parseFloat(invStrings.current.replace(',', '.')) || 0;
 
-        // Se current value for 0 mas total invested tiver valor e for novo, assume current = total (facilita entrada)
-        const adjustedCurrent = (finalCurrent === 0 && finalTotal > 0 && !editingInv.id) ? finalTotal : finalCurrent;
-
-        const invToSave = {
-            ...editingInv,
-            totalInvested: finalTotal,
-            currentValue: adjustedCurrent
-        } as InvestmentAsset;
+        let invToSave: InvestmentAsset;
 
         if (editingInv.id) {
+            // EDIT MODE: Preserva o totalInvested original (calculado pelo histórico ou anterior), atualiza apenas o currentValue
+            invToSave = {
+                ...editingInv,
+                currentValue: finalCurrent
+                // totalInvested não é alterado pelo input, pois vem do histórico ou state
+            };
             onEditInvestment(invToSave);
         } else {
+            // CREATE MODE: Total = Current = Input
+            invToSave = {
+                ...editingInv,
+                totalInvested: finalTotal,
+                currentValue: finalTotal
+            };
             onAddInvestment(invToSave);
         }
         setShowForm(false);
@@ -538,7 +543,6 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                         <div className="overflow-y-auto custom-scroll pr-2 space-y-4">
                             <div><label className="text-[10px] uppercase font-bold text-slate-400">Nome / Ticker</label><input className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={editingInv.ticker || ''} onChange={e => setEditingInv({ ...editingInv, ticker: e.target.value })} /></div>
                             <div><label className="text-[10px] uppercase font-bold text-slate-400">Categoria</label>
-                                {/* CORREÇÃO: Select agrupado por grupos dinâmicos */}
                                 <select className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={editingInv.category || ''} onChange={e => setEditingInv({ ...editingInv, category: e.target.value })}>
                                     {Object.entries(config.investment).map(([group, items]) => (
                                         <optgroup key={group} label={group}>
@@ -547,11 +551,37 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                     ))}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Total Investido</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.total} onChange={e => setInvStrings({ ...invStrings, total: e.target.value })} /></div>
-                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Valor Atual</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.current} onChange={e => setInvStrings({ ...invStrings, current: e.target.value })} /></div>
-                                </div>
+
+                            <div className="space-y-4">
+                                {!editingInv.id ? (
+                                    /* CREATE MODE: Input único */
+                                    <div>
+                                        <label className="text-[10px] uppercase font-bold text-slate-400">Investimento Inicial (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"
+                                            placeholder="0,00"
+                                            value={invStrings.total}
+                                            onChange={e => setInvStrings({ ...invStrings, total: e.target.value, current: e.target.value })}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Este valor será o custo inicial e o saldo inicial.</p>
+                                    </div>
+                                ) : (
+                                    /* EDIT MODE: Input único para saldo */
+                                    <div>
+                                        <label className="text-[10px] uppercase font-bold text-slate-400">Atualizar Saldo Atual (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"
+                                            placeholder="0,00"
+                                            value={invStrings.current}
+                                            onChange={e => setInvStrings({ ...invStrings, current: e.target.value })}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Atualize apenas o valor de mercado (rendimentos). Para novos aportes, use o botão "Aportar" no card.</p>
+                                    </div>
+                                )}
 
                                 {editingInv.id && (
                                     <HistoryManager
@@ -559,7 +589,6 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                         onChange={(h) => {
                                             const newTotal = h.reduce((acc, item) => acc + item.amount, 0);
                                             setEditingInv({ ...editingInv, history: h, totalInvested: newTotal });
-                                            setInvStrings(prev => ({ ...prev, total: newTotal.toString() }));
                                         }}
                                         currentUserId={currentUserId}
                                         userMap={userMap}
@@ -574,8 +603,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
-        </div>
+            )}    </div>
     );
 };
 
