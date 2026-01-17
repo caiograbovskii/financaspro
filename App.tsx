@@ -563,11 +563,28 @@ function MainApp() {
     };
 
     const handleAddInvestment = async (newInv: InvestmentAsset) => {
-        const safeInv = { ...newInv, totalInvested: Number(newInv.totalInvested || 0), currentValue: Number(newInv.currentValue || 0), history: newInv.history || [], user_id: session.user.id };
+        // CORREÇÃO: Adicionar purchaseDate imediato para atualização otimista
+        const now = new Date().toISOString();
+        const safeInv = {
+            ...newInv,
+            purchaseDate: now,
+            totalInvested: Number(newInv.totalInvested || 0),
+            currentValue: Number(newInv.currentValue || 0),
+            history: newInv.history || [],
+            user_id: session.user.id
+        };
 
         if (isConfigured) {
             setData(prev => ({ ...prev, investments: [...prev.investments, safeInv] }));
-            const { data: inserted } = await supabase.from('investments').insert({ user_id: session.user.id, ticker: safeInv.ticker, category: safeInv.category, purchase_date: new Date().toISOString(), total_invested: safeInv.totalInvested, current_value: safeInv.currentValue, history: safeInv.history }).select().single();
+            const { data: inserted } = await supabase.from('investments').insert({
+                user_id: session.user.id,
+                ticker: safeInv.ticker,
+                category: safeInv.category,
+                purchase_date: now,
+                total_invested: safeInv.totalInvested,
+                current_value: safeInv.currentValue,
+                history: safeInv.history
+            }).select().single();
             if (inserted) setData(prev => ({ ...prev, investments: prev.investments.map(i => i.id === safeInv.id ? { ...i, id: inserted.id } : i) }));
         } else {
             const id = Date.now().toString();
