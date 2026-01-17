@@ -657,11 +657,13 @@ function MainApp() {
         data.investments.forEach(inv => {
             (inv.history || []).forEach(h => {
                 if (h.amount > 0) {
-                    // Verifica duplicidade exata
+                    // Verifica duplicidade (Simplificado)
                     const exists = data.transactions.some(t =>
                         t.amount === Number(h.amount) &&
                         t.date === h.date &&
-                        (t.title === `Auto-Sync: ${inv.ticker}` || t.title.includes(inv.ticker))
+                        t.type === 'expense'
+                        // Removido check rígido de nome, pois pode variar. 
+                        // Se data, valor e tipo batem, assumimos que é o mesmo aporte.
                     );
 
                     if (!exists) {
@@ -1330,6 +1332,12 @@ function MainApp() {
                     </div>
                 </div>
             )}
+            <SmartDeleteModal
+                isOpen={smartDeleteModal.isOpen}
+                inv={smartDeleteModal.inv}
+                onClose={() => setSmartDeleteModal({ isOpen: false, inv: null })}
+                onProcess={processSmartDelete}
+            />
             <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
         </div>
     );
@@ -1400,3 +1408,39 @@ const KPICard = ({ title, value, icon: Icon, color }: any) => {
         </div>
     );
 };
+
+// --- SMART DELETE MODAL ---
+function SmartDeleteModal({ isOpen, inv, onClose, onProcess }: { isOpen: boolean, inv: InvestmentAsset | null, onClose: () => void, onProcess: (action: 'liquidate' | 'delete') => void }) {
+    if (!isOpen || !inv) return null;
+
+    return (
+        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
+            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-scale-in">
+                <h3 className="font-bold text-lg text-slate-800 mb-2">Excluir "{inv.ticker}"?</h3>
+                <p className="text-sm text-slate-500 mb-6">Este investimento ainda tem <strong className="text-slate-800">R$ {inv.currentValue.toLocaleString()}</strong>. O que deseja fazer?</p>
+
+                <div className="space-y-3">
+                    <button onClick={() => onProcess('liquidate')} className="w-full flex items-center justify-between p-3 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 transition group">
+                        <div className="text-left">
+                            <span className="block font-bold text-emerald-700 text-sm">Resgatar e Excluir</span>
+                            <span className="block text-[10px] text-emerald-600/80">Gera receita de resgate e remove o card.</span>
+                        </div>
+                        <Check size={18} className="text-emerald-500" />
+                    </button>
+
+                    <button onClick={() => onProcess('delete')} className="w-full flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 transition group">
+                        <div className="text-left">
+                            <span className="block font-bold text-rose-700 text-sm">Excluir Card (Manter Saldo)</span>
+                            <span className="block text-[10px] text-rose-600/80">Apenas remove da visão. Histórico fica.</span>
+                        </div>
+                        <Trash2 size={18} className="text-rose-500" />
+                    </button>
+                </div>
+
+                <div className="mt-6 border-t border-slate-100 pt-4 flex justify-end">
+                    <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 font-bold hover:bg-slate-50 rounded-lg">Cancelar</button>
+                </div>
+            </div>
+        </div>
+    );
+}
