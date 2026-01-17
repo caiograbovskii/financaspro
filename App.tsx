@@ -366,7 +366,8 @@ function MainApp() {
                 const parts = h.date.split('-');
                 const hYear = parseInt(parts[0]);
                 const hMonth = parseInt(parts[1]) - 1;
-                return (hMonth === dateFilter.month && hYear === dateFilter.year) ? hSum + h.amount : hSum;
+                // Considera apenas Aportes (positivos) para o fluxo de saída. Resgates geram Entrada via Transação.
+                return (hMonth === dateFilter.month && hYear === dateFilter.year && h.amount > 0) ? hSum + h.amount : hSum;
             }, 0);
 
             // 2. Compra inicial no período (Se purchaseDate for do mês filtrado)
@@ -616,6 +617,7 @@ function MainApp() {
         handleEditInvestment(updatedInv);
 
         // 2. Gerar Transação de Receita
+        const localDate = new Date().toLocaleDateString('pt-BR').split('/').reverse().join('-'); // YYYY-MM-DD
         const newTx: Transaction = {
             id: Date.now().toString() + '_resgate',
             user_id: session.user.id,
@@ -623,7 +625,7 @@ function MainApp() {
             amount: amount,
             type: 'income',
             category: 'Resgate de Investimento',
-            date: now.split('T')[0],
+            date: localDate,
             paymentMethod: 'Pix', // Default
             description: 'Resgate automático gerado pelo sistema'
         };
