@@ -1202,70 +1202,71 @@ function MainApp() {
             <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
         </div>
     );
+}
 
 
-    // --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
-    function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
-        const today = new Date().toISOString().split('T')[0];
-        const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
-        const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
+// --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
+function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
+    const today = new Date().toISOString().split('T')[0];
+    const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
+    const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
 
-        const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
+    const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
 
-        const handleSave = () => {
-            if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
-            if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
+    const handleSave = () => {
+        if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
+        if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
 
-            // Parse final amount
-            const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
-            handleSaveTransaction({ ...form, amount: finalAmount });
-        };
-
-        return (
-            <div onKeyDown={e => e.key === 'Enter' && handleSave()}>
-                <button onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
-                <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} Transação</h3>
-
-                <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
-                    <button onClick={() => !editingTransaction && setForm({ ...form, type: 'expense' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Despesa</button>
-                    <button onClick={() => !editingTransaction && setForm({ ...form, type: 'income' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Receita</button>
-                </div>
-
-                <div className="space-y-4">
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
-                    <div className="grid grid-cols-2 gap-4">
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
-                        <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
-                    </div>
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
-                        <select className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
-                            {form.type === 'expense'
-                                ? (Object.entries(data.categoryConfig.expense || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
-                                : (Object.entries(data.categoryConfig.income || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
-                            }
-                        </select>
-                    </div>
-
-                    {form.type === 'expense' && (
-                        <div>
-                            <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Forma de Pagamento</label>
-                            <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÉBITO' : m}</button>))}</div>
-                        </div>
-                    )}
-
-                    <div><label className="text-xs font-bold text-slate-500 uppercase">Descrição</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
-                </div>
-                <button onClick={handleSave} className="w-full mt-6 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg">Salvar</button>
-            </div>
-        );
-    }
-
-    const KPICard = ({ title, value, icon: Icon, color }: any) => {
-        const colorClasses: any = { emerald: 'bg-emerald-100 text-emerald-600', rose: 'bg-rose-100 text-rose-600', blue: 'bg-blue-100 text-blue-600', teal: 'bg-teal-100 text-teal-600' };
-        return (
-            <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition">
-                <div><p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{title}</p><h3 className="text-xl md:text-2xl font-bold text-slate-800">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3></div>
-                <div className={`p-3 rounded-xl ${colorClasses[color]}`}><Icon size={24} /></div>
-            </div>
-        );
+        // Parse final amount
+        const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
+        handleSaveTransaction({ ...form, amount: finalAmount });
     };
+
+    return (
+        <div onKeyDown={e => e.key === 'Enter' && handleSave()}>
+            <button onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
+            <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} Transação</h3>
+
+            <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
+                <button onClick={() => !editingTransaction && setForm({ ...form, type: 'expense' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Despesa</button>
+                <button onClick={() => !editingTransaction && setForm({ ...form, type: 'income' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'income' ? 'bg-white text-emerald-600 shadow-sm' : 'text-slate-500'}`}>Receita</button>
+            </div>
+
+            <div className="space-y-4">
+                <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
+                <div className="grid grid-cols-2 gap-4">
+                    <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
+                    <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
+                </div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase">Categoria</label>
+                    <select className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.category} onChange={e => setForm({ ...form, category: e.target.value })}>
+                        {form.type === 'expense'
+                            ? (Object.entries(data.categoryConfig.expense || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
+                            : (Object.entries(data.categoryConfig.income || {}).map(([group, items]: any) => (<optgroup key={group} label={group}>{(items || []).map((c: string) => <option key={c} value={c}>{c}</option>)}</optgroup>)))
+                        }
+                    </select>
+                </div>
+
+                {form.type === 'expense' && (
+                    <div>
+                        <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Forma de Pagamento</label>
+                        <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÉBITO' : m}</button>))}</div>
+                    </div>
+                )}
+
+                <div><label className="text-xs font-bold text-slate-500 uppercase">Descrição</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
+            </div>
+            <button onClick={handleSave} className="w-full mt-6 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg">Salvar</button>
+        </div>
+    );
+}
+
+const KPICard = ({ title, value, icon: Icon, color }: any) => {
+    const colorClasses: any = { emerald: 'bg-emerald-100 text-emerald-600', rose: 'bg-rose-100 text-rose-600', blue: 'bg-blue-100 text-blue-600', teal: 'bg-teal-100 text-teal-600' };
+    return (
+        <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex items-center justify-between hover:shadow-md transition">
+            <div><p className="text-xs font-bold uppercase tracking-wider text-slate-400 mb-1">{title}</p><h3 className="text-xl md:text-2xl font-bold text-slate-800">R$ {value.toLocaleString('pt-BR', { minimumFractionDigits: 2 })}</h3></div>
+            <div className={`p-3 rounded-xl ${colorClasses[color]}`}><Icon size={24} /></div>
+        </div>
+    );
+};
