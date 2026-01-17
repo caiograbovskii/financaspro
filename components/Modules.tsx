@@ -580,7 +580,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 };
 
 // --- SETTINGS VIEW ---
-export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void }> = ({ config, onUpdate, readOnly, onLogout }) => {
+export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void, onSync?: () => void }> = ({ config, onUpdate, readOnly, onLogout, onSync }) => {
     const { showToast } = useToast();
     const [localConfig, setLocalConfig] = useState<CategoryConfig>(config);
     const [activeTab, setActiveTab] = useState<'expenses' | 'investments' | 'income' | 'security'>('expenses');
@@ -758,6 +758,20 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
                                 <div className="flex items-center gap-2">
                                     <div className={`p-2 rounded-lg ${themeBg} ${themeText}`}><ThemeIcon size={20} /></div>
                                     <div>
+                                        {activeTab === 'investments' && (
+                                            <>
+                                                {!readOnly && onSync && (
+                                                    <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center justify-between">
+                                                        <div>
+                                                            <h4 className="font-bold text-blue-700 text-sm">Sincronização de Saldo</h4>
+                                                            <p className="text-xs text-blue-500">Gera transações retroativas para investimentos antigos.</p>
+                                                        </div>
+                                                        <button onClick={onSync} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs shadow-sm hover:bg-blue-700 transition">Sincronizar Agora</button>
+                                                    </div>
+                                                )}
+                                                <h3 className="font-bold text-slate-700 mb-4">Categorias de Investimentos</h3>
+                                            </>
+                                        )}
                                         <h3 className="font-bold text-slate-700">
                                             {activeTab === 'expenses' ? 'Grupos de Despesa' : activeTab === 'investments' ? 'Grupos de Investimento' : 'Grupos de Receita'}
                                         </h3>
