@@ -141,6 +141,7 @@ function MainApp() {
     const [mentorNotes, setMentorNotes] = useState<any[]>([]);
     const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
     const [editingNoteText, setEditingNoteText] = useState('');
+    const [smartDeleteModal, setSmartDeleteModal] = useState<{ isOpen: boolean, inv: InvestmentAsset | null }>({ isOpen: false, inv: null });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
 
     // Perfil de Leitura (Mentora)
@@ -684,26 +685,47 @@ function MainApp() {
         });
     };
 
-    const handleDeleteInvestment = async (id: string) => {
+    const handleDeleteInvestment = (id: string) => {
         const inv = data.investments.find(i => i.id === id);
         if (!inv) return;
 
-        if (inv.currentValue > 1) { // Smart Delete Check
-            if (confirm(`ATENÇÃO: Este investimento tem saldo de R$ ${inv.currentValue.toFixed(2)}.\n\nClique OK para RESGATAR O TOTAL (Liquidar) antes de excluir.\nClique CANCELAR para APENAS EXCLUIR (Correção de cadastro).`)) {
-                // Opção A: Liquidar (Resgatar tudo -> Excluir)
-                await handleInvestmentResgate(id, inv.currentValue);
-                // Otimisticamente o resgate ocorre, prossegue para exclusão
-            }
+        if (inv.currentValue > 0) {
+            setSmartDeleteModal({ isOpen: true, inv });
+        } else {
+            setConfirmModal({
+                isOpen: true,
+                title: 'Excluir Investimento',
+                message: 'Tem certeza que deseja remover este investimento permanentemente?',
+                type: 'danger',
+                onConfirm: async () => {
+                    setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                    if (isConfigured) {
+                        await supabase.from('investments').delete().eq('id', id);
+                        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                    } else {
+                        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+                    }
+                }
+            });
+        }
+    };
+
+    const processSmartDelete = async (action: 'liquidate' | 'delete') => {
+        if (!smartDeleteModal.inv) return;
+        const { id, currentValue } = smartDeleteModal.inv;
+
+        if (action === 'liquidate') {
+            await handleInvestmentResgate(id, currentValue);
         }
 
-        if (confirm('Tem certeza que deseja remover este investimento permanentemente?')) {
-            if (isConfigured) {
-                await supabase.from('investments').delete().eq('id', id);
-                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-            } else {
-                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-            }
+        // Proceed to delete
+        if (isConfigured) {
+            await supabase.from('investments').delete().eq('id', id);
+            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+        } else {
+            setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
         }
+        setSmartDeleteModal({ isOpen: false, inv: null });
     };
 
 
@@ -1165,6 +1187,7 @@ function MainApp() {
                         onEditInvestment={handleEditInvestment}
                         onDeleteInvestment={handleDeleteInvestment}
                         onAportar={handleInvestmentAporte}
+                        onResgatar={handleInvestmentResgate}
                         userMap={userMap}
                         currentUserId={session.user.id}
                         config={data.categoryConfig}
@@ -1196,6 +1219,50 @@ function MainApp() {
                 <div className="fixed inset-0 bg-black/60 z-[100] flex items-end md:items-center justify-center backdrop-blur-sm p-0 md:p-4" onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }}>
                     <div className="bg-white rounded-t-2xl md:rounded-2xl w-full md:max-w-lg p-6 shadow-2xl animate-fade-in-up max-h-[90vh] overflow-y-auto relative mb-0 md:mb-0 mx-auto" onClick={e => e.stopPropagation()}>
                         <TransactionFormModal editingTransaction={editingTransaction} data={data} handleSaveTransaction={handleSaveTransaction} setTxModalOpen={setTxModalOpen} setEditingTransaction={setEditingTransaction} onDelete={deleteTransaction} />
+                    </div>
+                </div>
+            )}
+            {/* Smart Delete Modal */}
+            {smartDeleteModal.isOpen && smartDeleteModal.inv && (
+                <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center backdrop-blur-sm p-4" onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4 text-amber-600">
+                            <div className="bg-amber-100 p-2 rounded-full"><AlertTriangle size={24} /></div>
+                            <h3 className="text-xl font-bold text-slate-800">Saldo Remanescente</h3>
+                        </div>
+
+                        <p className="text-slate-600 mb-6 leading-relaxed">
+                            O ativo <strong className="text-slate-800">{smartDeleteModal.inv.ticker}</strong> ainda possui <strong className="text-emerald-600">R$ {smartDeleteModal.inv.currentValue.toFixed(2)}</strong>.
+                            <br /><br />
+                            O que deseja fazer com este saldo?
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={() => processSmartDelete('liquidate')}
+                                className="w-full py-4 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2"
+                            >
+                                <TrendingUp size={20} />
+                                Resgatar Tudo e Excluir
+                                <span className="text-xs font-normal opacity-80">(Liquidar)</span>
+                            </button>
+
+                            <button
+                                onClick={() => processSmartDelete('delete')}
+                                className="w-full py-3 px-4 bg-white border-2 border-slate-200 hover:border-rose-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold rounded-xl transition flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={18} />
+                                Apenas Excluir
+                                <span className="text-xs font-normal opacity-80">(Correção)</span>
+                            </button>
+
+                            <button
+                                onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}
+                                className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition text-sm mt-2"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
                     </div>
                 </div>
             )}
@@ -1270,3 +1337,5 @@ const KPICard = ({ title, value, icon: Icon, color }: any) => {
         </div>
     );
 };
+
+export default App;

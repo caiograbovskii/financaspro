@@ -349,6 +349,18 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
     };
     const [aporteMode, setAporteMode] = useState<string | null>(null);
     const [aporteValue, setAporteValue] = useState('');
+    const [redeemModal, setRedeemModal] = useState<{ isOpen: boolean, inv: InvestmentAsset | null }>({ isOpen: false, inv: null });
+    const [redeemValue, setRedeemValue] = useState('');
+
+    const handleConfirmRedeem = () => {
+        if (!redeemModal.inv || !redeemValue) return;
+        const val = parseFloat(redeemValue.replace(',', '.'));
+        if (val > 0 && val <= redeemModal.inv.currentValue) {
+            if (onResgatar) onResgatar(redeemModal.inv.id, val);
+            setRedeemModal({ isOpen: false, inv: null });
+            setRedeemValue('');
+        }
+    };
 
     const totalAssets = useMemo(() => investments.reduce((acc, inv) => acc + (inv.currentValue || 0), 0), [investments]);
 
@@ -525,19 +537,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                                 {/* Botão de Resgate */}
                                                 <button
                                                     onClick={() => {
-                                                        const val = prompt(`Quanto deseja resgatar de ${inv.ticker}? (Máx: R$ ${inv.currentValue})`);
-                                                        if (val) {
-                                                            const numVal = parseFloat(val.replace(',', '.'));
-                                                            if (!isNaN(numVal) && numVal > 0 && numVal <= inv.currentValue) {
-                                                                if (confirm(`Confirmar resgate de R$ ${numVal.toFixed(2)}?\nIsso irá gerar uma receita no seu saldo.`)) {
-                                                                    // Usa prop onResgatar se disponível, senão fallback (apenas para type safety por enquanto)
-                                                                    // @ts-ignore
-                                                                    if (onResgatar) onResgatar(inv.id, numVal);
-                                                                }
-                                                            } else if (numVal > inv.currentValue) {
-                                                                alert('Valor indisponível para resgate.');
-                                                            }
-                                                        }
+                                                        setRedeemModal({ isOpen: true, inv });
                                                     }}
                                                     className="px-3 py-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-rose-500 transition"
                                                 >
@@ -574,7 +574,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                             <div className="grid grid-cols-2 gap-2">
                                 <div className="grid grid-cols-2 gap-2">
                                     <div><label className="text-[10px] uppercase font-bold text-slate-400">Total Investido</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.total} onChange={e => setInvStrings({ ...invStrings, total: e.target.value })} /></div>
-                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Valor Atual</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.current} onChange={e => setInvStrings({ ...invStrings, current: e.target.value })} /></div>
+                                    {editingInv.id && <div><label className="text-[10px] uppercase font-bold text-slate-400">Valor Atual</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.current} onChange={e => setInvStrings({ ...invStrings, current: e.target.value })} /></div>}
                                 </div>
 
                                 {editingInv.id && (
@@ -591,7 +591,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 )}
 
                                 <div className="pt-2 flex gap-2">
-                                    {editingInv.id && <button onClick={() => { if (confirm('Excluir?')) { onDeleteInvestment(editingInv.id!); setShowForm(false); } }} className="px-4 py-2 text-rose-500 font-bold border border-rose-100 hover:bg-rose-50 rounded-lg">Excluir</button>}
+                                    {editingInv.id && <button onClick={() => { onDeleteInvestment(editingInv.id!); setShowForm(false); }} className="px-4 py-2 text-rose-500 font-bold border border-rose-100 hover:bg-rose-50 rounded-lg">Excluir</button>}
                                     <button onClick={handleSave} className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold shadow-lg">Salvar</button>
                                 </div>
                             </div>
@@ -599,9 +599,38 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                     </div>
                 </div>
             )}
+
+            {/* Modal de Resgate */}
+            {redeemModal.isOpen && redeemModal.inv && (
+                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setRedeemModal({ isOpen: false, inv: null })}>
+                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <h3 className="font-bold text-slate-800 text-lg mb-2">Resgatar {redeemModal.inv.ticker}</h3>
+                        <p className="text-slate-500 text-sm mb-4">Saldo disponível: R$ {redeemModal.inv.currentValue.toFixed(2)}</p>
+
+                        <div className="mb-6">
+                            <label className="text-xs font-bold text-slate-500 uppercase">Valor do Resgate</label>
+                            <input
+                                autoFocus
+                                type="number"
+                                className="w-full p-3 border border-slate-300 rounded-xl text-xl font-bold text-slate-800 outline-none focus:border-indigo-500 mt-1"
+                                placeholder="0,00"
+                                value={redeemValue}
+                                onChange={e => setRedeemValue(e.target.value)}
+                                onKeyDown={e => e.key === 'Enter' && handleConfirmRedeem()}
+                            />
+                        </div>
+
+                        <div className="flex gap-3">
+                            <button onClick={() => setRedeemModal({ isOpen: false, inv: null })} className="flex-1 py-3 text-slate-600 font-bold bg-slate-100 rounded-xl hover:bg-slate-200 transition">Cancelar</button>
+                            <button onClick={handleConfirmRedeem} className="flex-1 py-3 text-white font-bold bg-slate-900 rounded-xl hover:bg-slate-800 transition shadow-lg">Confirmar</button>
+                        </div>
+                    </div>
+                </div>
+            )}
         </div>
-    );
-};
+    )
+}
+
 
 // --- SETTINGS VIEW ---
 export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void }> = ({ config, onUpdate, readOnly, onLogout }) => {

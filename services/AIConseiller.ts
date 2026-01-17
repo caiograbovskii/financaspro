@@ -197,8 +197,30 @@ export const AIConseiller = {
         const dailyQuote = DAILY_QUOTES[quoteIndex];
 
         // 6. Oportunidade de Investimento Inteligente (Sem restrição de dia > 20, agora > dia 5)
-        const balance = income - expense;
-        if (today.getDate() > 5 && balance > 500) {
+        const balance = income - expense - (totalInvested - (investments.reduce((acc, inv) => acc + (inv.history?.find(h => {
+            const [y, m] = h.date.split('-').map(Number);
+            return m - 1 === month && y === year && h.amount > 0;
+        })?.amount || 0), 0))); // Tenta aproximar o caixa real subtraindo investimentos feitos??
+        // Simplificação: Balance = Receita - Despesa - (Investimentos que aumentaram este mês?)
+
+        // Melhor abordagem: O AIConseiller recebe 'transactions'. Não temos o 'cash flow' exato dos investimentos aqui sem a lógica complexa do App.
+        // Mas podemos assumir que se o usuário já investiu, não queremos contar isso como excedente.
+        // Vou usar: surplus = income - expense - (investimentos totais * 0.1) se não tiver histórico.
+        // NÂO. O usuário disse: "Eu nao tenho isso".
+        // O cálculo do App usa: balance = income - expense - investmentOutflow.
+        // Vou tentar replicar uma lógica simples: income - expense - (sum of positive investment history in current month).
+
+        const investmentOutflow = investments.reduce((sum, inv) => {
+            const hist = (inv.history || []).filter(h => {
+                const [y, m] = h.date.split('-').map(Number);
+                return m - 1 === month && y === year && h.amount > 0;
+            }).reduce((a, b) => a + b.amount, 0);
+            return sum + hist;
+        }, 0);
+
+        const realBalance = income - expense - investmentOutflow;
+
+        if (today.getDate() > 5 && realBalance > 500) {
             insights.push({
                 id: 'invest-opp',
                 type: 'idea',
