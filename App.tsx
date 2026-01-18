@@ -1,4 +1,4 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
     LayoutDashboard, CalendarRange, Target,
     Briefcase, Plus, ChevronLeft, ChevronRight,
@@ -17,14 +17,14 @@ import {
 } from './types';
 import { ToastProvider, Celebration, useToast } from './components/SharedUI';
 
-// Importa apenas os módulos ativos
+// Importa apenas os mÃ³dulos ativos
 import { WeeklyCosts, GoalsView, InvestmentPortfolio, SettingsView } from './components/Modules';
 import { AIConseiller } from './services/AIConseiller';
 import { ConfirmDialog } from './components/SharedUI';
 
 // --- Constantes Visuais ---
 const PIE_COLORS = ['#3b82f6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981'];
-const MONTHS = ['Janeiro', 'Fevereiro', 'Março', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
+const MONTHS = ['Janeiro', 'Fevereiro', 'MarÃ§o', 'Abril', 'Maio', 'Junho', 'Julho', 'Agosto', 'Setembro', 'Outubro', 'Novembro', 'Dezembro'];
 
 // Helper para formatar data
 const formatDate = (dateString: string) => {
@@ -36,17 +36,17 @@ const formatDate = (dateString: string) => {
 // --- Categorias Iniciais Atualizadas para Grupos ---
 const DEFAULT_CATEGORIES: CategoryConfig = {
     expense: {
-        'ESSENCIAL': ['Casa', 'Mercado', 'Energia', 'Água', 'Internet', 'Transporte', 'Saúde'],
+        'ESSENCIAL': ['Casa', 'Mercado', 'Energia', 'Ãgua', 'Internet', 'Transporte', 'SaÃºde'],
         'ESTILO DE VIDA': ['Lazer', 'Restaurantes', 'Compras', 'Assinaturas']
     },
     income: {
-        'PRINCIPAL': ['Salário', 'Pró-labore'],
+        'PRINCIPAL': ['SalÃ¡rio', 'PrÃ³-labore'],
         'EXTRAS': ['Freelance', 'Vendas', 'Outros'],
-        'PASSIVA': ['Dividendos', 'Aluguéis']
+        'PASSIVA': ['Dividendos', 'AluguÃ©is']
     },
     investment: {
-        'RENDA FIXA': ['CDB', 'Tesouro Direto', 'LCI/LCA', 'Poupança'],
-        'RENDA VARIÁVEL': ['Ações', 'FIIs', 'ETFs'],
+        'RENDA FIXA': ['CDB', 'Tesouro Direto', 'LCI/LCA', 'PoupanÃ§a'],
+        'RENDA VARIÃVEL': ['AÃ§Ãµes', 'FIIs', 'ETFs'],
         'CRIPTO & OUTROS': ['Bitcoin', 'Ethereum', 'Ouro']
     }
 };
@@ -75,7 +75,7 @@ function LoginScreen() {
         setLoading(true);
 
         if (!isConfigured) {
-            setError('ERRO: Configuração do Supabase ausente.');
+            setError('ERRO: ConfiguraÃ§Ã£o do Supabase ausente.');
             setLoading(false);
             return;
         }
@@ -93,7 +93,7 @@ function LoginScreen() {
                 <div className="flex justify-center mb-6">
                     <div className="w-12 h-12 bg-indigo-600 rounded-xl flex items-center justify-center text-white font-bold text-xl shadow-indigo-200 shadow-lg">FP</div>
                 </div>
-                <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Bem-vindo ao FinançasPRO</h2>
+                <h2 className="text-2xl font-bold text-center text-slate-800 mb-2">Bem-vindo ao FinanÃ§asPRO</h2>
 
                 <div className="space-y-4">
                     <input className="w-full p-3 bg-white border border-slate-300 rounded-lg outline-none text-slate-900" placeholder="Email" value={email} onChange={e => setEmail(e.target.value)} />
@@ -141,30 +141,31 @@ function MainApp() {
     const [mentorNotes, setMentorNotes] = useState<any[]>([]);
     const [editingNoteId, setEditingNoteId] = useState<string | null>(null);
     const [editingNoteText, setEditingNoteText] = useState('');
-    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
     const [smartDeleteModal, setSmartDeleteModal] = useState<{ isOpen: boolean, inv: InvestmentAsset | null }>({ isOpen: false, inv: null });
+    const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
+
 
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
 
-    // --- EFEITOS DE SESSÃO ---
+    // --- EFEITOS DE SESSÃƒO ---
 
     // 1. Sempre voltar para Dashboard ao recarregar
     useEffect(() => {
         setActiveModule('dashboard');
     }, []);
 
-    // 2. Timeout de Sessão (30 min inatividade)
+    // 2. Timeout de SessÃ£o (30 min inatividade)
     useEffect(() => {
         const checkSession = () => {
             const lastActive = localStorage.getItem('fp_last_active');
             const now = Date.now();
             if (lastActive && (now - Number(lastActive) > 30 * 60 * 1000)) {
-                // Sessão expirada
+                // SessÃ£o expirada
                 setSession(null);
                 supabase.auth.signOut();
                 localStorage.removeItem('fp_last_active');
-                if (session) alert('Sessão expirada por inatividade. Por favor, faça login novamente.');
+                if (session) alert('SessÃ£o expirada por inatividade. Por favor, faÃ§a login novamente.');
             } else {
                 localStorage.setItem('fp_last_active', now.toString());
             }
@@ -183,9 +184,9 @@ function MainApp() {
         };
     }, [session]);
 
-    // --- Inicialização ---
+    // --- InicializaÃ§Ã£o ---
     useEffect(() => {
-        // Se não estiver configurado, paramos o loading para cair na tela de login
+        // Se nÃ£o estiver configurado, paramos o loading para cair na tela de login
         if (!isConfigured) {
             setLoading(false);
             return;
@@ -196,7 +197,7 @@ function MainApp() {
             if (session) loadData(session.user.id);
             else setLoading(false);
         }).catch(err => {
-            console.error("Erro ao verificar sessão:", err);
+            console.error("Erro ao verificar sessÃ£o:", err);
             setLoading(false);
         });
 
@@ -240,16 +241,16 @@ function MainApp() {
 
             let loadedConfig = DEFAULT_CATEGORIES;
 
-            // --- LOGICA DE MIGRAÇÃO DE DADOS ---
+            // --- LOGICA DE MIGRAÃ‡ÃƒO DE DADOS ---
             if (cats.data?.config) {
                 const serverConfig = cats.data.config;
 
-                // Migrar Investimentos (de fixed/variable fixos para grupos dinâmicos)
+                // Migrar Investimentos (de fixed/variable fixos para grupos dinÃ¢micos)
                 let newInvestments: any = {};
                 if (serverConfig.investment && Array.isArray(serverConfig.investment.fixed)) {
                     // Estrutura antiga detectada
                     newInvestments['RENDA FIXA'] = serverConfig.investment.fixed;
-                    newInvestments['RENDA VARIÁVEL'] = serverConfig.investment.variable || [];
+                    newInvestments['RENDA VARIÃVEL'] = serverConfig.investment.variable || [];
                     // Se houver targets antigos, ignoramos por enquanto pois a estrutura mudou
                 } else {
                     // Estrutura nova ou customizada
@@ -364,11 +365,42 @@ function MainApp() {
             .filter(t => t.type === 'expense')
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-        // NOVA LÓGICA (BANCÁRIA):
+        // NOVA LÃ“GICA (BANCÃRIA):
         // Balance = Receita - Despesa.
         // Investimentos geram Despesas no momento do aporte.
         // Resgates geram Receitas no momento do resgate.
-        // Portanto, o Saldo Final é simplesmente a soma das transações.
+        // Portanto, o Saldo Final Ã© simplesmente a soma das transaÃ§Ãµes.
+
+        // CORREÃ‡ÃƒO: Calcular fluxo de saÃ­da para investimentos (Dinheiro que saiu da conta)
+        // LÃ³gica: Soma de todos os Aportes (HistÃ³rico > 0) + Aporte Inicial (se nÃ£o estiver no historico)
+        const investmentOutflow = data.investments.reduce((sum, inv) => {
+            // 1. HistÃ³rico no perÃ­odo (APENAS APORTES POSITIVOS)
+            const historySum = (inv.history || []).reduce((hSum, h) => {
+                const parts = h.date.split('-');
+                const hYear = parseInt(parts[0]);
+                const hMonth = parseInt(parts[1]) - 1;
+                // Ignora resgates (-). O resgate vira uma transaÃ§Ã£o de Receita.
+                return (hMonth === dateFilter.month && hYear === dateFilter.year && h.amount > 0) ? hSum + Number(h.amount) : hSum;
+            }, 0);
+
+            // 2. Aporte Inicial (Saldo Inicial nÃ£o registrado no histÃ³rico)
+            let initialOutflow = 0;
+            if (inv.purchaseDate) {
+                const pParts = inv.purchaseDate.split('T')[0].split('-');
+                const pYear = parseInt(pParts[0]);
+                const pMonth = parseInt(pParts[1]) - 1;
+
+                if (pMonth === dateFilter.month && pYear === dateFilter.year) {
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + Number(h.amount), 0);
+                    // Se TotalInvested > Soma dos Aportes, a diferenÃ§a Ã© o inicial
+                    const initial = Number(inv.totalInvested || 0) - totalHistoryInvested;
+                    if (initial > 0) initialOutflow = initial;
+                }
+            }
+
+            return sum + historySum + initialOutflow;
+        }, 0);
+
 
         const totalInvestedCurrent = data.investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0);
         const totalUnlinkedGoals = data.goals
@@ -433,13 +465,13 @@ function MainApp() {
 
     // --- Handlers ---
     const handleUpdateCategories = async (newConfig: CategoryConfig) => {
-        // Remover atualização otimista para depuração correta de persistência
+        // Remover atualizaÃ§Ã£o otimista para depuraÃ§Ã£o correta de persistÃªncia
         // setData(prev => ({ ...prev, categoryConfig: newConfig })); - REMOVIDO PARA DEBUG
 
         console.log('[DEBUG_FLAVIA] Iniciando salvamento de categorias...', { categoryId, isConfigured });
 
         if (!isConfigured) {
-            console.warn('[DEBUG_FLAVIA] Supabase não configurado. Salvando apenas localmente.');
+            console.warn('[DEBUG_FLAVIA] Supabase nÃ£o configurado. Salvando apenas localmente.');
             setData(prev => ({ ...prev, categoryConfig: newConfig }));
             return;
         }
@@ -451,7 +483,7 @@ function MainApp() {
                 console.error('[DEBUG_FLAVIA] Erro ao atualizar:', error);
                 throw error; // Propagar erro para o chamador
             }
-            console.log('[DEBUG_FLAVIA] Atualização de sucesso!');
+            console.log('[DEBUG_FLAVIA] AtualizaÃ§Ã£o de sucesso!');
         } else {
             console.log('[DEBUG_FLAVIA] Tentando criar novo registro de categorias...');
             const { data: ins, error } = await supabase.from('categories').insert({
@@ -484,7 +516,7 @@ function MainApp() {
         } catch (e) { console.error(e); }
     };
 
-    // CRUD Transações, Metas e Investimentos
+    // CRUD TransaÃ§Ãµes, Metas e Investimentos
     const handleEditGoal = async (updatedGoal: Goal) => {
         let finalGoal = { ...updatedGoal };
         if (finalGoal.linkedInvestmentIds && finalGoal.linkedInvestmentIds.length > 0) {
@@ -511,10 +543,10 @@ function MainApp() {
             if (inserted) {
                 setData(prev => ({ ...prev, goals: prev.goals.map(g => g.name === safeGoal.name && !g.id ? { ...g, id: inserted.id } : g) }));
                 setShowCelebration(true);
-                showToast('Meta criada com sucesso! 🚀', 'success');
+                showToast('Meta criada com sucesso! ðŸš€', 'success');
             } else { loadData(session.user.id); }
         } else {
-            // Fallback local se não estiver configurado
+            // Fallback local se nÃ£o estiver configurado
             const id = Date.now().toString();
             setData(prev => ({ ...prev, goals: [...prev.goals, { ...safeGoal, id }] }));
         }
@@ -543,6 +575,7 @@ function MainApp() {
     };
 
     const handleAddInvestment = async (newInv: InvestmentAsset) => {
+
         const now = new Date().toISOString();
         let safeHistory = newInv.history || [];
         const initialAmount = Number(newInv.totalInvested || 0);
@@ -567,7 +600,7 @@ function MainApp() {
             user_id: session.user.id
         };
 
-        // CRIAR TRANSAÇÃO DE DESPESA (FLUXO DE CAIXA)
+        // CRIAR TRANSAÃ‡ÃƒO DE DESPESA (FLUXO DE CAIXA)
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -597,7 +630,7 @@ function MainApp() {
                 return;
             }
 
-            // Salva Transação de Saída no Banco
+            // Salva TransaÃ§Ã£o de SaÃ­da no Banco
             if (initialAmount > 0) {
                 await supabase.from('transactions').insert(newTx);
             }
@@ -628,7 +661,7 @@ function MainApp() {
         const finalAmount = Number(amount);
         const nowStr = new Date().toISOString().split('T')[0];
 
-        // 1. Criar novo item de histórico
+        // 1. Criar novo item de histÃ³rico
         const newHistoryItem: HistoryEntry = {
             id: crypto.randomUUID(),
             date: nowStr,
@@ -649,10 +682,10 @@ function MainApp() {
             history: updatedHistory
         };
 
-        // O handleEditInvestment já sabe lidar com isso
+        // O handleEditInvestment jÃ¡ sabe lidar com isso
         await handleEditInvestment(updatedInv);
 
-        // 3. Gerar Transação de Despesa
+        // 3. Gerar TransaÃ§Ã£o de Despesa
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -668,16 +701,16 @@ function MainApp() {
         showToast('Aporte registrado com sucesso!', 'success');
     };
 
-    // NOVO: Função para Sincronizar (Migrar) Investimentos antigos para o modelo de Transações
+    // NOVO: FunÃ§Ã£o para Sincronizar (Migrar) Investimentos antigos para o modelo de TransaÃ§Ãµes
     const handleSyncInvestments = async () => {
-        console.log('Iniciando sincronização...');
+        console.log('Iniciando sincronizaÃ§Ã£o...');
         let newTxs: Transaction[] = [];
 
         data.investments.forEach(inv => {
             const hasHistory = inv.history && inv.history.length > 0;
             let historyToProcess = hasHistory ? inv.history : [];
 
-            // Caso especial: Investimento antigo SEM histórico, mas COM total investido > 0
+            // Caso especial: Investimento antigo SEM histÃ³rico, mas COM total investido > 0
             if (!hasHistory && (inv.totalInvested || 0) > 0) {
                 historyToProcess.push({
                     id: `fallback-${inv.id}`,
@@ -686,7 +719,7 @@ function MainApp() {
                     description: 'Saldo Inicial (Sincronizado)',
                     userId: session.user.id
                 });
-                console.log(`Fallback de histórico criado para: ${inv.ticker} - R$ ${inv.totalInvested}`);
+                console.log(`Fallback de histÃ³rico criado para: ${inv.ticker} - R$ ${inv.totalInvested}`);
             }
 
             (historyToProcess || []).forEach(h => {
@@ -699,7 +732,7 @@ function MainApp() {
                     );
 
                     if (!exists) {
-                        console.log(`Criando transação para: ${inv.ticker} | Data: ${h.date} | Valor: ${h.amount}`);
+                        console.log(`Criando transaÃ§Ã£o para: ${inv.ticker} | Data: ${h.date} | Valor: ${h.amount}`);
                         newTxs.push({
                             id: crypto.randomUUID(),
                             user_id: session.user.id,
@@ -709,16 +742,16 @@ function MainApp() {
                             category: 'Investimentos',
                             date: h.date,
                             paymentMethod: 'pix',
-                            description: `Sincronização de saldo para ${inv.ticker}`
+                            description: `SincronizaÃ§Ã£o de saldo para ${inv.ticker}`
                         });
                     } else {
-                        console.log(`Ignorado (já existe): ${inv.ticker} | R$ ${h.amount}`);
+                        console.log(`Ignorado (jÃ¡ existe): ${inv.ticker} | R$ ${h.amount}`);
                     }
                 }
             });
         });
 
-        console.log(`Encontradas ${newTxs.length} novas transações para sincronizar.`);
+        console.log(`Encontradas ${newTxs.length} novas transaÃ§Ãµes para sincronizar.`);
 
         if (newTxs.length > 0) {
             if (isConfigured) {
@@ -740,11 +773,14 @@ function MainApp() {
             }
             const allNew = [...data.transactions, ...newTxs];
             setData(prev => ({ ...prev, transactions: allNew }));
-            showToast(`${newTxs.length} transações geradas e sincronizadas!`, 'success');
+            showToast(`${newTxs.length} transaÃ§Ãµes geradas e sincronizadas!`, 'success');
         } else {
-            showToast('O saldo já está sincronizado!', 'success');
+            showToast('O saldo jÃ¡ estÃ¡ sincronizado!', 'success');
         }
     };
+
+    // NOVO: Manipulador de Resgate (Gera transaÃ§Ã£o de receita)
+
 
     const handleSaveTransaction = async (tx: Partial<Transaction>) => {
         const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description };
@@ -776,15 +812,18 @@ function MainApp() {
     const deleteTransaction = async (id: string) => {
         setConfirmModal({
             isOpen: true,
-            title: 'Excluir Transação',
-            message: 'Tem certeza que deseja remover esta transação? Essa ação é irreversível.',
+            title: 'Excluir TransaÃ§Ã£o',
+            message: 'Tem certeza que deseja remover esta transaÃ§Ã£o? Essa aÃ§Ã£o Ã© irreversÃ­vel.',
             type: 'danger',
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
                 if (isConfigured) {
                     const { error } = await supabase.from('transactions').delete().eq('id', id);
                     if (error) showToast('Erro ao excluir: ' + error.message, 'error');
-                    else loadData(session.user.id);
+                    else {
+                        showToast('TransaÃ§Ã£o excluÃ­da', 'success');
+                        loadData(session.user.id);
+                    }
                 } else {
                     setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
                 }
@@ -795,21 +834,22 @@ function MainApp() {
         const inv = data.investments.find(i => i.id === id);
         if (!inv) return;
 
+
         const finalAmount = Number(amount);
         const now = new Date();
         const localDate = now.toLocaleDateString('pt-BR').split('/').reverse().join('-'); // YYYY-MM-DD (Match Main Logic)
 
-        // 1. Criar entrada no histórico
+        // 1. Criar entrada no histÃ³rico
         const historyEntry: HistoryEntry = {
             id: crypto.randomUUID(),
             date: localDate,
-            amount: -finalAmount, // Valor negativo para representar saída
+            amount: -finalAmount, // Valor negativo para representar saÃ­da
             description: 'Resgate Parcial',
             type: 'withdrawal',
             userId: session.user.id
         };
 
-        // 2. Atualizar Investimento (Reduzir CurrentValue e adicionar histórico)
+        // 2. Atualizar Investimento (Reduzir CurrentValue e adicionar histÃ³rico)
         const updatedInv = {
             ...inv,
             currentValue: Math.max(0, Number(inv.currentValue) - finalAmount),
@@ -819,7 +859,7 @@ function MainApp() {
         // Atualiza Investimento (Banco + Estado)
         await handleEditInvestment(updatedInv);
 
-        // 3. Gerar Transação de Receita (Lógica da Main: Update Otimista + Insert Direto)
+        // 3. Gerar TransaÃ§Ã£o de Receita (LÃ³gica da Main: Update Otimista + Insert Direto)
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -840,7 +880,7 @@ function MainApp() {
 
         showToast(`Resgate de R$ ${finalAmount.toFixed(2)} realizado!`, "success");
 
-        // Persistência Direta com Mapeamento Correto
+        // PersistÃªncia Direta com Mapeamento Correto
         if (isConfigured) {
             const { error } = await supabase.from('transactions').insert({
                 user_id: session.user.id,
@@ -854,8 +894,8 @@ function MainApp() {
             });
 
             if (error) {
-                console.error('Erro ao salvar transação de resgate:', error);
-                showToast('Erro ao salvar transação: ' + error.message, 'error');
+                console.error('Erro ao salvar transaÃ§Ã£o de resgate:', error);
+                showToast('Erro ao salvar transaÃ§Ã£o: ' + error.message, 'error');
             } else {
                 // Opcional: Recarregar para confirmar
                 // loadData(session.user.id);
@@ -863,29 +903,103 @@ function MainApp() {
         }
     };
 
+    // Helper: Converte histórico de investimentos em transações de despesa para manter o saldo correto após exclusão
+    const solidifyInvestmentHistory = async (inv: InvestmentAsset) => {
+        const newTransactions: Transaction[] = [];
+
+        // 1. Converter Histórico de Aportes
+        if (inv.history && inv.history.length > 0) {
+            inv.history.forEach(h => {
+                if (h.amount > 0) {
+                    newTransactions.push({
+                        id: crypto.randomUUID(),
+                        user_id: session.user.id,
+                        title: `Auto-Aporte: ${inv.ticker}`,
+                        amount: Number(h.amount),
+                        type: 'expense',
+                        category: 'Investimentos',
+                        date: h.date,
+                        paymentMethod: 'pix',
+                        description: `Histórico preservado de ${inv.ticker}`
+                    });
+                }
+            });
+        }
+
+        // 2. Converter Saldo Inicial (sem histórico)
+        const totalHistory = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + Number(h.amount), 0);
+        const initialDifference = Number(inv.totalInvested || 0) - totalHistory;
+
+        if (initialDifference > 0) {
+            const dateStr = inv.purchaseDate ? inv.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0];
+            newTransactions.push({
+                id: crypto.randomUUID(),
+                user_id: session.user.id,
+                title: `Aporte Inicial: ${inv.ticker}`,
+                amount: initialDifference,
+                type: 'expense',
+                category: 'Investimentos',
+                date: dateStr,
+                paymentMethod: 'pix',
+                description: `Saldo inicial preservado de ${inv.ticker}`
+            });
+        }
+
+        // Persistir Transações
+        if (newTransactions.length > 0) {
+            if (isConfigured) {
+                const { error } = await supabase.from('transactions').insert(newTransactions.map(t => ({
+                    user_id: t.user_id,
+                    title: t.title,
+                    amount: t.amount,
+                    type: t.type,
+                    category: t.category,
+                    date: t.date,
+                    payment_method: t.paymentMethod,
+                    description: t.description
+                })));
+                if (error) console.error('Erro ao solidificar histórico:', error);
+            }
+            // Atualiza estado local
+            setData(prev => ({ ...prev, transactions: [...prev.transactions, ...newTransactions] }));
+        }
+    };
+
     const handleDeleteInvestment = (id: string) => {
         const inv = data.investments.find(i => i.id === id);
         if (!inv) return;
 
-        // Visual "Mercado Pago": Se tem saldo, sugere resgate. Se zero, apenas apaga (histórico fica no extrato).
         if (inv.currentValue > 0) {
             setSmartDeleteModal({ isOpen: true, inv });
         } else {
             setConfirmModal({
                 isOpen: true,
                 title: 'Excluir Investimento',
-                message: 'Isso removerá o card da sua tela. Todo o histórico financeiro (Aportes/Resgates) será mantido no extrato.',
+                message: 'O investimento será excluído, mas seu histórico de aportes será convertido em "Despesas" para não alterar seu saldo contábil.',
                 type: 'danger',
                 onConfirm: async () => {
                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
 
-                    if (isConfigured) {
-                        const { error } = await supabase.from('investments').delete().eq('id', id);
-                        if (error) { showToast('Erro: ' + error.message, 'error'); return; }
+                    try {
+                        // 1. Converter histórico em despesas (Solidificar)
+                        await solidifyInvestmentHistory(inv);
+
+                        // 2. Excluir investimento APENAS (Manter Resgates)
+                        if (isConfigured) {
+                            const { error } = await supabase.from('investments').delete().eq('id', id);
+                            if (error) throw error;
+                        }
+
+                        setData(prev => ({
+                            ...prev,
+                            investments: prev.investments.filter(i => i.id !== id)
+                            // NÃƒO filtramos transactions de resgate mais!
+                        }));
+
+                        showToast('Investimento excluÃ­do. HistÃ³rico preservado.', 'success');
+                    } catch (e: any) {
+                        showToast('Erro ao excluir: ' + e.message, 'error');
                     }
-                    // Apenas remove o card. Não mexe em transações.
-                    setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-                    showToast('Investimento removido da visualização.', 'success');
                 }
             });
         }
@@ -893,21 +1007,32 @@ function MainApp() {
 
     const processSmartDelete = async (action: 'liquidate' | 'delete') => {
         if (!smartDeleteModal.inv) return;
-        const { id, currentValue } = smartDeleteModal.inv;
+        const { id, currentValue, ticker } = smartDeleteModal.inv;
+        const inv = smartDeleteModal.inv;
 
-        if (action === 'liquidate') {
-            await handleInvestmentResgate(id, currentValue);
+        try {
+            if (action === 'liquidate') {
+                await handleInvestmentResgate(id, currentValue);
+            }
+
+            // Ao excluir, solidifica o histÃ³rico de custo
+            await solidifyInvestmentHistory(inv);
+
+            if (isConfigured) {
+                await supabase.from('investments').delete().eq('id', id);
+                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+            } else {
+                setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
+            }
+            showToast('Investimento removido.', 'success');
+        } catch (e) {
+            console.error(e);
+            showToast('Erro ao processar.', 'error');
         }
 
-        // Delete visual card only
-        if (isConfigured) {
-            await supabase.from('investments').delete().eq('id', id);
-        }
-        setData(prev => ({ ...prev, investments: prev.investments.filter(i => i.id !== id) }));
-
-        showToast('Card removido.', 'success');
         setSmartDeleteModal({ isOpen: false, inv: null });
     };
+
 
     const handleDeleteGoal = async (id: string) => {
         setConfirmModal({
@@ -932,14 +1057,14 @@ function MainApp() {
             console.log('[DEBUG_FLAVIA] Inserindo nota na tabela...');
             const { error } = await supabase.from('mentor_notes').insert({
                 message,
-                author_name: 'Flávia (Mentora)',
+                author_name: 'FlÃ¡via (Mentora)',
                 author_email: session.user.email
             });
 
             if (error) throw error;
 
             await loadData(session.user.id);
-            showToast('Recado enviado para a família!', 'success');
+            showToast('Recado enviado para a famÃ­lia!', 'success');
         } catch (error: any) {
             console.error('[DEBUG_FLAVIA] Erro ao inserir:', error);
             showToast('Erro ao salvar: ' + (error.message || 'Desconhecido'), 'error');
@@ -984,16 +1109,16 @@ function MainApp() {
 
     const handleLogout = () => { setSession(null); supabase.auth.signOut(); };
 
-    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-500">Carregando FinançasPRO...</div>;
+    if (loading) return <div className="h-screen flex items-center justify-center bg-slate-50 text-slate-500">Carregando FinanÃ§asPRO...</div>;
 
     if (!session) return <LoginScreen />;
 
     const paginatedTransactions = filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
     const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
 
-    // Mapeamento dos itens de navegação para reuso (Sidebar e Bottom Nav)
+    // Mapeamento dos itens de navegaÃ§Ã£o para reuso (Sidebar e Bottom Nav)
     const navItems = [
-        { id: 'dashboard', icon: LayoutDashboard, label: 'Visão Geral' },
+        { id: 'dashboard', icon: LayoutDashboard, label: 'VisÃ£o Geral' },
         { id: 'weekly', icon: CalendarRange, label: 'Custos Semanais' },
         { id: 'goals', icon: Target, label: 'Metas', c: 'bg-amber-50 text-amber-700' },
         { id: 'investments', icon: Briefcase, label: 'Investimentos', c: 'bg-teal-50 text-teal-700' },
@@ -1006,8 +1131,8 @@ function MainApp() {
             {/* SIDEBAR DESKTOP - Oculta no mobile (hidden md:flex) */}
             <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col py-6 z-20 shadow-sm">
                 <div className="px-6 mb-8 w-full">
-                    <div className="flex items-center gap-3 mb-1"><div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">FP</div><span className="text-xl font-bold">FinançasPRO</span></div>
-                    <p className="text-xs text-slate-400 pl-11">Família Grabovskii</p>
+                    <div className="flex items-center gap-3 mb-1"><div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">FP</div><span className="text-xl font-bold">FinanÃ§asPRO</span></div>
+                    <p className="text-xs text-slate-400 pl-11">FamÃ­lia Grabovskii</p>
                 </div>
                 <nav className="flex-1 px-3 space-y-2">
                     {navItems.filter(i => i.id !== 'settings').map(item => (
@@ -1017,7 +1142,7 @@ function MainApp() {
                     ))}
                 </nav>
                 <div className="px-3 mt-auto space-y-2">
-                    <button onClick={() => setActiveModule('settings')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl ${activeModule === 'settings' ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}><Settings size={20} /><span className="text-sm">Configurações</span></button>
+                    <button onClick={() => setActiveModule('settings')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl ${activeModule === 'settings' ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}><Settings size={20} /><span className="text-sm">ConfiguraÃ§Ãµes</span></button>
                     <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-rose-500 hover:bg-rose-50"><LogOut size={20} /><span className="text-sm">Sair</span></button>
                 </div>
             </aside>
@@ -1027,13 +1152,13 @@ function MainApp() {
                     <div className="flex flex-col">
                         <div className='flex flex-col md:flex-row md:items-baseline md:gap-2'>
                             <h1 className="text-lg md:text-2xl font-bold text-slate-800 capitalize truncate max-w-[150px] md:max-w-none">
-                                {activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}
+                                {activeModule === 'dashboard' ? 'VisÃ£o Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'ConfiguraÃ§Ãµes'}
                             </h1>
                             {activeModule === 'dashboard' && session?.user?.email && (
                                 <span className="text-xs md:text-lg font-medium text-slate-500">
-                                    {session.user.email === 'caio@casa.com' ? 'Olá Caio' :
-                                        session.user.email === 'carla@casa.com' ? 'Olá Carla' :
-                                            session.user.email === 'flavia@mentora.com' ? 'Olá Flávia' : ''}
+                                    {session.user.email === 'caio@casa.com' ? 'OlÃ¡ Caio' :
+                                        session.user.email === 'carla@casa.com' ? 'OlÃ¡ Carla' :
+                                            session.user.email === 'flavia@mentora.com' ? 'OlÃ¡ FlÃ¡via' : ''}
                                 </span>
                             )}
                         </div>
@@ -1041,7 +1166,7 @@ function MainApp() {
                     <div className="flex gap-2 md:gap-4">
                         {activeModule === 'dashboard' && !isReadOnly && (
                             <button onClick={openNewTransaction} className="bg-slate-900 text-white px-3 md:px-5 py-2 rounded-xl flex items-center gap-2 shadow-lg text-sm font-medium">
-                                <Plus size={18} /> <span className="hidden sm:inline">Nova Transação</span>
+                                <Plus size={18} /> <span className="hidden sm:inline">Nova TransaÃ§Ã£o</span>
                             </button>
                         )}
                         {activeModule !== 'settings' && (
@@ -1054,7 +1179,7 @@ function MainApp() {
                     </div>
                 </header>
 
-                {/* Padding inferior aumentado no mobile (pb-24) para o conteúdo não ficar atrás da navbar */}
+                {/* Padding inferior aumentado no mobile (pb-24) para o conteÃºdo nÃ£o ficar atrÃ¡s da navbar */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll relative pb-24 md:pb-8">
                     {activeModule === 'dashboard' && (
                         <div className="space-y-6 md:space-y-8 animate-fade-in">
@@ -1067,7 +1192,7 @@ function MainApp() {
                                         Consultor IA
                                     </h2>
                                     <button onClick={() => { setDismissedInsights([]); setRefreshSeed(s => s + 1); }} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
-                                        <RefreshCcw size={14} /> Atualizar Análise
+                                        <RefreshCcw size={14} /> Atualizar AnÃ¡lise
                                     </button>
                                 </div>
 
@@ -1085,7 +1210,7 @@ function MainApp() {
                                         </div>
                                     </div>
                                     <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
-                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
+                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro Ã© uma maratona, nÃ£o um sprint.'}"</p>
                                     </div>
                                 </div>
 
@@ -1107,11 +1232,11 @@ function MainApp() {
                                     </div>
                                 ) : (
                                     <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 mb-4">
-                                        <p className="text-slate-500 text-sm">Nenhum novo insight no momento. Você está no controle!</p>
+                                        <p className="text-slate-500 text-sm">Nenhum novo insight no momento. VocÃª estÃ¡ no controle!</p>
                                     </div>
                                 )}
 
-                                {/* CITAÇÃO DO DIA */}
+                                {/* CITAÃ‡ÃƒO DO DIA */}
                                 <div className="mt-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 relative">
                                     <Quote size={40} className="absolute top-4 left-4 text-indigo-200 opacity-50" />
                                     <div className="relative z-10 pl-6 md:pl-10">
@@ -1119,7 +1244,7 @@ function MainApp() {
                                         <div className="flex items-center gap-2">
                                             <div className="h-px bg-indigo-200 w-8"></div>
                                             <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">{insights.dailyQuote.author}</p>
-                                            <span className="text-xs text-slate-400">• {insights.dailyQuote.source}</span>
+                                            <span className="text-xs text-slate-400">â€¢ {insights.dailyQuote.source}</span>
                                         </div>
                                     </div>
                                 </div>
@@ -1135,17 +1260,17 @@ function MainApp() {
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-slate-800">Mural da Mentora</h3>
-                                            <p className="text-xs text-slate-500">Recados oficiais de Flávia</p>
+                                            <p className="text-xs text-slate-500">Recados oficiais de FlÃ¡via</p>
                                         </div>
                                     </div>
 
-                                    {/* Se for a Flávia, mostra input */}
+                                    {/* Se for a FlÃ¡via, mostra input */}
                                     {session?.user?.email === 'flavia@mentora.com' && (
                                         <div className="mb-6 flex gap-2 relative z-10">
                                             <input
                                                 id="mentor-input"
                                                 className="flex-1 bg-white border border-orange-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-orange-200"
-                                                placeholder="Escreva um recado para a família..."
+                                                placeholder="Escreva um recado para a famÃ­lia..."
                                                 onKeyDown={e => {
                                                     if (e.key === 'Enter') {
                                                         const val = e.currentTarget.value;
@@ -1165,7 +1290,7 @@ function MainApp() {
                                         </div>
                                     )}
 
-                                    {/* Lista de Recados (Filtrada por Mês) */}
+                                    {/* Lista de Recados (Filtrada por MÃªs) */}
                                     <div className="space-y-3 relative z-10">
                                         {mentorNotes && mentorNotes.filter(n => {
                                             const nDate = new Date(n.created_at);
@@ -1221,7 +1346,7 @@ function MainApp() {
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mês.</p>
+                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mÃªs.</p>
                                         )}
                                     </div>
                                 </div>
@@ -1232,13 +1357,13 @@ function MainApp() {
                                 <KPICard title="Receitas" value={kpiData.income} icon={TrendingUp} color="emerald" />
                                 <KPICard title="Despesas" value={kpiData.expense} icon={TrendingDown} color="rose" />
                                 <KPICard title="Saldo Final" value={kpiData.balance} icon={Wallet} color="blue" />
-                                <KPICard title="Patrimônio Total" value={kpiData.invested} icon={Briefcase} color="teal" />
+                                <KPICard title="PatrimÃ´nio Total" value={kpiData.invested} icon={Briefcase} color="teal" />
                             </div>
 
                             {/* EVOLUTION CHART */}
                             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base"><ArrowUpRight size={20} className="text-emerald-500" /> Evolução Patrimonial (6 Meses)</h3>
+                                    <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base"><ArrowUpRight size={20} className="text-emerald-500" /> EvoluÃ§Ã£o Patrimonial (6 Meses)</h3>
                                     <div className="flex items-center gap-2 text-xs">
                                         <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-emerald-500"></div> <span className="hidden sm:inline">Total</span></span>
                                         <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-slate-300"></div> <span className="hidden sm:inline">Investido</span></span>
@@ -1266,7 +1391,7 @@ function MainApp() {
                                 </div>
                             </div>
 
-                            {/* GRÁFICOS INFERIORES RESPONSIVOS (Stack vertical no mobile) */}
+                            {/* GRÃFICOS INFERIORES RESPONSIVOS (Stack vertical no mobile) */}
                             <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:h-[400px]">
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
                                     <h3 className="font-bold text-slate-700 mb-6">Receitas X Despesas</h3>
@@ -1275,7 +1400,7 @@ function MainApp() {
                                     </div>
                                 </div>
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
-                                    <h3 className="font-bold text-slate-700 mb-6">Composição Financeira</h3>
+                                    <h3 className="font-bold text-slate-700 mb-6">ComposiÃ§Ã£o Financeira</h3>
                                     <div className="flex-1 min-h-0">
                                         <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Essencial', value: kpiData.expense * 0.6 }, { name: 'Estilo de Vida', value: kpiData.expense * 0.4 }, { name: 'Investimentos', value: kpiData.invested > 0 ? kpiData.invested * 0.1 : 0 }]} innerRadius={50} outerRadius={75} paddingAngle={5} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>{PIE_COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer>
                                     </div>
@@ -1283,12 +1408,12 @@ function MainApp() {
                             </div>
 
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
-                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700">Últimas Transações</h3><span className="text-xs text-slate-400">Página {currentPage + 1} de {totalPages || 1}</span></div>
+                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700">Ãšltimas TransaÃ§Ãµes</h3><span className="text-xs text-slate-400">PÃ¡gina {currentPage + 1} de {totalPages || 1}</span></div>
 
                                 {/* Table Wrapper para scroll horizontal no mobile */}
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left min-w-[500px] md:min-w-full">
-                                        <thead className="text-slate-500 text-xs uppercase font-bold border-b border-slate-100"><tr><th className="py-3 px-2">Título</th><th className="py-3 px-2">Data</th><th className="py-3 px-2">Categoria</th><th className="py-3 px-2 text-right">Valor</th><th className="py-3 px-2"></th></tr></thead>
+                                        <thead className="text-slate-500 text-xs uppercase font-bold border-b border-slate-100"><tr><th className="py-3 px-2">TÃ­tulo</th><th className="py-3 px-2">Data</th><th className="py-3 px-2">Categoria</th><th className="py-3 px-2 text-right">Valor</th><th className="py-3 px-2"></th></tr></thead>
                                         <tbody className="text-sm">
                                             {paginatedTransactions.map(t => (
                                                 <tr key={t.id} onClick={() => !isReadOnly && openEditTransaction(t)} className={`border-b border-slate-50 hover:bg-slate-50 transition ${!isReadOnly ? 'cursor-pointer' : ''} group`}>
@@ -1332,7 +1457,7 @@ function MainApp() {
                                 </div>
                                 <div className="flex justify-end gap-2 mt-4 pt-4 border-t border-slate-50">
                                     <button onClick={() => setCurrentPage(p => Math.max(0, p - 1))} disabled={currentPage === 0} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">Anterior</button>
-                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">Próximo</button>
+                                    <button onClick={() => setCurrentPage(p => Math.min(totalPages - 1, p + 1))} disabled={currentPage >= totalPages - 1} className="px-4 py-2 text-sm rounded-lg bg-slate-50 text-slate-600 hover:bg-slate-100 disabled:opacity-50">PrÃ³ximo</button>
                                 </div>
                             </div>
                         </div>
@@ -1378,7 +1503,7 @@ function MainApp() {
                 </div>
             </main>
 
-            {/* BOTTOM NAVIGATION - VISÍVEL APENAS NO MOBILE */}
+            {/* BOTTOM NAVIGATION - VISÃVEL APENAS NO MOBILE */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 flex justify-around p-2 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {navItems.map(item => {
                     const isActive = activeModule === item.id;
@@ -1408,12 +1533,14 @@ function MainApp() {
                 onClose={() => setSmartDeleteModal({ isOpen: false, inv: null })}
                 onProcess={processSmartDelete}
             />
+
             <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
-        </div>
+        </div >
     );
 }
 
-// --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
+
+// --- LIMPEZA: MODAL SEM RECORRÃŠNCIA E SEM PARCELAMENTO COMPLEXO ---
 function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
     const today = new Date().toISOString().split('T')[0];
     const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
@@ -1422,8 +1549,8 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
     const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
 
     const handleSave = () => {
-        if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
-        if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
+        if (form.date && form.date > today) { setErrors({ date: "Data futura nÃ£o permitida" }); return; }
+        if (!form.title) { setErrors({ title: "TÃ­tulo obrigatÃ³rio" }); return; }
 
         // Parse final amount
         const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
@@ -1433,7 +1560,7 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
     return (
         <div onKeyDown={e => e.key === 'Enter' && handleSave()}>
             <button onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
-            <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} Transação</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} TransaÃ§Ã£o</h3>
 
             <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                 <button onClick={() => !editingTransaction && setForm({ ...form, type: 'expense' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Despesa</button>
@@ -1441,7 +1568,7 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
             </div>
 
             <div className="space-y-4">
-                <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase">TÃ­tulo</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
                 <div className="grid grid-cols-2 gap-4">
                     <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
                     <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
@@ -1458,11 +1585,11 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
                 {form.type === 'expense' && (
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Forma de Pagamento</label>
-                        <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÉBITO' : m}</button>))}</div>
+                        <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÃ‰BITO' : m}</button>))}</div>
                     </div>
                 )}
 
-                <div><label className="text-xs font-bold text-slate-500 uppercase">Descrição</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase">DescriÃ§Ã£o</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             </div>
             <button onClick={handleSave} className="w-full mt-6 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg">Salvar</button>
         </div>
@@ -1478,6 +1605,7 @@ const KPICard = ({ title, value, icon: Icon, color }: any) => {
         </div>
     );
 };
+
 
 // --- SMART DELETE MODAL ---
 function SmartDeleteModal({ isOpen, inv, onClose, onProcess }: { isOpen: boolean, inv: InvestmentAsset | null, onClose: () => void, onProcess: (action: 'liquidate' | 'delete') => void }) {
@@ -1501,7 +1629,7 @@ function SmartDeleteModal({ isOpen, inv, onClose, onProcess }: { isOpen: boolean
                     <button onClick={() => onProcess('delete')} className="w-full flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 transition group">
                         <div className="text-left">
                             <span className="block font-bold text-rose-700 text-sm">Excluir Card (Manter Saldo)</span>
-                            <span className="block text-[10px] text-rose-600/80">Apenas remove da visão. Histórico fica.</span>
+                            <span className="block text-[10px] text-rose-600/80">Apenas remove da visÃ£o. HistÃ³rico fica.</span>
                         </div>
                         <Trash2 size={18} className="text-rose-500" />
                     </button>

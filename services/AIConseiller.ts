@@ -196,17 +196,58 @@ export const AIConseiller = {
         const quoteIndex = daySeed % DAILY_QUOTES.length;
         const dailyQuote = DAILY_QUOTES[quoteIndex];
 
-        // 6. Oportunidade de Investimento Inteligente
-        // Regra: Sobrou dinheiro (> 10% da receita ou > R$ 500) E o mês está acabando (> dia 20)
-        const balance = income - expense;
-        if (today.getDate() > 20 && balance > 500) {
+        // 6. Oportunidade de Investimento Inteligente (Sem restrição de dia > 20, agora > dia 5)
+        const balance = income - expense - (totalInvested - (investments.reduce((acc, inv) => acc + (inv.history?.find(h => {
+            const [y, m] = h.date.split('-').map(Number);
+            return m - 1 === month && y === year && h.amount > 0;
+        })?.amount || 0), 0))); // Tenta aproximar o caixa real subtraindo investimentos feitos??
+        // Simplificação: Balance = Receita - Despesa - (Investimentos que aumentaram este mês?)
+
+        // Melhor abordagem: O AIConseiller recebe 'transactions'. Não temos o 'cash flow' exato dos investimentos aqui sem a lógica complexa do App.
+        // Mas podemos assumir que se o usuário já investiu, não queremos contar isso como excedente.
+        // Vou usar: surplus = income - expense - (investimentos totais * 0.1) se não tiver histórico.
+        // NÂO. O usuário disse: "Eu nao tenho isso".
+        // O cálculo do App usa: balance = income - expense - investmentOutflow.
+        // Vou tentar replicar uma lógica simples: income - expense - (sum of positive investment history in current month).
+
+        const investmentOutflow = investments.reduce((sum, inv) => {
+            const hist = (inv.history || []).filter(h => {
+                const [y, m] = h.date.split('-').map(Number);
+                return m - 1 === month && y === year && h.amount > 0;
+            }).reduce((a, b) => a + b.amount, 0);
+            return sum + hist;
+        }, 0);
+
+        const realBalance = income - expense - investmentOutflow;
+
+        if (today.getDate() > 5 && realBalance > 500) {
             insights.push({
                 id: 'invest-opp',
                 type: 'idea',
                 title: 'Excedente de Caixa',
-                message: `Você tem R$ ${balance.toFixed(2)} disponíveis no fim do mês. Que tal aportar em seus investimentos?`,
+                message: `Você tem R$ ${balance.toFixed(2)} disponíveis. Que tal aportar em seus investimentos?`,
                 icon: TrendingUp,
                 color: 'purple'
+            });
+        }
+
+        // 7. Insight Diário de Evolução (Novo)
+        const dailyTips = [
+            "Pague a si mesmo primeiro: Separe seu investimento assim que receber.",
+            "Evite compras por impulso: Espere 24h antes de comprar algo não essencial.",
+            "Revise suas assinaturas mensais. Você usa tudo o que paga?",
+            "Acompanhe suas metas semanalmente para não perder o foco.",
+            "Crie um fundo de reserva para imprevistos e durma tranquilo."
+        ];
+        // Usa o seed do dia para escolher uma dica
+        if (insights.length < 3) { // Só mostra se não houver muitos alertas críticos
+            insights.push({
+                id: 'daily-tip',
+                type: 'info',
+                title: 'Dica do Dia 💡',
+                message: dailyTips[daySeed % dailyTips.length],
+                icon: Brain,
+                color: 'indigo'
             });
         }
 

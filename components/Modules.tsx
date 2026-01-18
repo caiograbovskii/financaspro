@@ -349,6 +349,18 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
     };
     const [aporteMode, setAporteMode] = useState<string | null>(null);
     const [aporteValue, setAporteValue] = useState('');
+    const [redeemModal, setRedeemModal] = useState<{ isOpen: boolean, inv: InvestmentAsset | null }>({ isOpen: false, inv: null });
+    const [redeemValue, setRedeemValue] = useState('');
+
+    const handleConfirmRedeem = () => {
+        if (!redeemModal.inv || !redeemValue) return;
+        const val = parseFloat(redeemValue.replace(',', '.'));
+        if (val > 0 && val <= redeemModal.inv.currentValue) {
+            if (onResgatar) onResgatar(redeemModal.inv.id, val);
+            setRedeemModal({ isOpen: false, inv: null });
+            setRedeemValue('');
+        }
+    };
 
     const totalAssets = useMemo(() => investments.reduce((acc, inv) => acc + (inv.currentValue || 0), 0), [investments]);
 
@@ -650,7 +662,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 )}
 
                                 <div className="pt-2 flex gap-2">
-                                    {editingInv.id && <button onClick={() => { if (confirm('Excluir?')) { onDeleteInvestment(editingInv.id!); setShowForm(false); } }} className="px-4 py-2 text-rose-500 font-bold border border-rose-100 hover:bg-rose-50 rounded-lg">Excluir</button>}
+                                    {editingInv.id && <button onClick={() => { onDeleteInvestment(editingInv.id!); setShowForm(false); }} className="px-4 py-2 text-rose-500 font-bold border border-rose-100 hover:bg-rose-50 rounded-lg">Excluir</button>}
                                     <button onClick={handleSave} className="flex-1 bg-slate-900 text-white py-2 rounded-lg font-bold shadow-lg">Salvar</button>
                                 </div>
                             </div>
