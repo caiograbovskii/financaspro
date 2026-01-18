@@ -830,15 +830,42 @@ function MainApp() {
                     if (relatedInv) {
                         const amount = Number(txToDelete.amount);
 
-                        // Reverse the math
-                        const newTotal = Math.max(0, relatedInv.totalInvested - amount);
-                        const newCurrent = Math.max(0, relatedInv.currentValue - amount);
+                        let newTotal = relatedInv.totalInvested;
+                        let newCurrent = relatedInv.currentValue;
+
+                        // Logic: If it was an EXPENSE (Aporte), we REVERSE by SUBTRACTING.
+                        //        If it was an INCOME (Resgate), we REVERSE by ADDING.
+                        // Note: 'Aporte' is typically Expense. 'Resgate' is typically Income (or "withdrawal" history).
+
+                        const isResgate = txToDelete.title.includes('Resgate') || (txToDelete.type === 'income' && txToDelete.category === 'Investimentos');
+
+                        if (isResgate) {
+                            // Reversing a Redemption (Money came OUT, so put it back IN)
+                            newCurrent = Number(relatedInv.currentValue) + amount;
+                            // We don't change totalInvested on Resgate usually, unless business rule changes.
+                        } else {
+                            // Reversing an Apport (Money went IN, so take it OUT)
+                            newTotal = Math.max(0, relatedInv.totalInvested - amount);
+                            newCurrent = Math.max(0, relatedInv.currentValue - amount);
+                        }
 
                         // Remove from history (Find ONE matching entry)
                         let removedFound = false;
                         const newHistory = (relatedInv.history || []).filter(h => {
-                            // Match loosely by amount and date
-                            if (!removedFound && Math.abs(h.amount - amount) < 0.1 && h.date === txToDelete.date) {
+                            if (removedFound) return true;
+
+                            const matchDate = h.date === txToDelete.date;
+                            let matchAmount = false;
+
+                            if (isResgate) {
+                                // In handleInvestmentResgate we stored amount as NEGATIVE. Transaction is Positive.
+                                // So we look for abs(history) == transaction amount
+                                matchAmount = Math.abs(h.amount) === amount || Math.abs(h.amount + amount) < 0.1;
+                            } else {
+                                matchAmount = Math.abs(h.amount - amount) < 0.1;
+                            }
+
+                            if (matchDate && matchAmount) {
                                 removedFound = true;
                                 return false;
                             }

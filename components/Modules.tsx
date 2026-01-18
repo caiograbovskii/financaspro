@@ -268,7 +268,7 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Alvo</label><input type="number" step="0.01" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={amountStrings.target} onChange={e => setAmountStrings({ ...amountStrings, target: e.target.value })} /></div>
                                 {/* "Valor Atual" removido conforme solicitação, agora é 100% calculado ou gerido internamente */}
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Data Limite (Opcional)</label><input type="date" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.deadline || ''} onChange={e => setEditingGoal({ ...editingGoal, deadline: e.target.value })} /></div>
-                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Vincular Investimentos (Máºltiplos)</label>
+                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Vincular Investimentos (Múltiplos)</label>
                                     <div className="border border-slate-200 rounded-xl p-2 max-h-40 overflow-y-auto custom-scroll bg-slate-50">
                                         {investments.length === 0 ? <p className="text-xs text-slate-400 text-center py-2">Nenhum investimento cadastrado.</p> : investments.map(inv => {
                                             const isSelected = (editingGoal.linkedInvestmentIds || []).includes(inv.id);
@@ -280,8 +280,8 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                                         })}
                                     </div>
                                 </div>
-                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Descriçáo / Motivo (Opcional)</label><textarea className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition h-20" value={editingGoal.reason || ''} onChange={e => setEditingGoal({ ...editingGoal, reason: e.target.value })} /></div>
-                                {monthlyContribution !== null && (<div className="bg-amber-50 border border-amber-100 p-3 rounded-lg text-sm text-amber-800">Para atingir sua meta atá© {new Date(editingGoal.deadline!).toLocaleDateString('pt-BR')}, vocáª precisa guardar aproximadamente <span className="font-bold">R$ {monthlyContribution.toFixed(2)}/máªs</span>.</div>)}
+                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Descrição / Motivo (Opcional)</label><textarea className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition h-20" value={editingGoal.reason || ''} onChange={e => setEditingGoal({ ...editingGoal, reason: e.target.value })} /></div>
+                                {monthlyContribution !== null && (<div className="bg-amber-50 border border-amber-100 p-3 rounded-lg text-sm text-amber-800">Para atingir sua meta até {new Date(editingGoal.deadline!).toLocaleDateString('pt-BR')}, você precisa guardar aproximadamente <span className="font-bold">R$ {monthlyContribution.toFixed(2)}/mês</span>.</div>)}
                                 <div className="flex gap-2 mt-4 pt-2"><button onClick={handleSave} className="w-full bg-amber-500 hover:bg-amber-600 text-white p-3 rounded-xl font-bold shadow-lg shadow-amber-200 transition">Salvar Meta</button></div>
                             </div>
                         </div>
