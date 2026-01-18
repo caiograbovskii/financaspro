@@ -36,17 +36,17 @@ const formatDate = (dateString: string) => {
 // --- Categorias Iniciais Atualizadas para Grupos ---
 const DEFAULT_CATEGORIES: CategoryConfig = {
     expense: {
-        'ESSENCIAL': ['Casa', 'Mercado', 'Energia', 'Ógua', 'Internet', 'Transporte', 'SaÓºde'],
+        'ESSENCIAL': ['Casa', 'Mercado', 'Energia', 'Água', 'Internet', 'Transporte', 'Saúde'],
         'ESTILO DE VIDA': ['Lazer', 'Restaurantes', 'Compras', 'Assinaturas']
     },
     income: {
-        'PRINCIPAL': ['SalÓ¡rio', 'PrÓ³-labore'],
+        'PRINCIPAL': ['Salário', 'Pró-labore'],
         'EXTRAS': ['Freelance', 'Vendas', 'Outros'],
-        'PASSIVA': ['Dividendos', 'AluguÓ©is']
+        'PASSIVA': ['Dividendos', 'Aluguéis']
     },
     investment: {
         'RENDA FIXA': ['CDB', 'Tesouro Direto', 'LCI/LCA', 'Poupança'],
-        'RENDA VARIÓVEL': ['AçÓµes', 'FIIs', 'ETFs'],
+        'RENDA VARIÁVEL': ['Ações', 'FIIs', 'ETFs'],
         'CRIPTO & OUTROS': ['Bitcoin', 'Ethereum', 'Ouro']
     }
 };
@@ -75,7 +75,7 @@ function LoginScreen() {
         setLoading(true);
 
         if (!isConfigured) {
-            setError('ERRO: ConfiguraçÓo do Supabase ausente.');
+            setError('ERRO: Configuração do Supabase ausente.');
             setLoading(false);
             return;
         }
@@ -148,24 +148,24 @@ function MainApp() {
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
 
-    // --- EFEITOS DE SESSÓƒO ---
+    // --- EFEITOS DE SESSÃO ---
 
     // 1. Sempre voltar para Dashboard ao recarregar
     useEffect(() => {
         setActiveModule('dashboard');
     }, []);
 
-    // 2. Timeout de SessÓo (30 min inatividade)
+    // 2. Timeout de Sessão (30 min inatividade)
     useEffect(() => {
         const checkSession = () => {
             const lastActive = localStorage.getItem('fp_last_active');
             const now = Date.now();
             if (lastActive && (now - Number(lastActive) > 30 * 60 * 1000)) {
-                // SessÓo expirada
+                // Sessão expirada
                 setSession(null);
                 supabase.auth.signOut();
                 localStorage.removeItem('fp_last_active');
-                if (session) alert('SessÓo expirada por inatividade. Por favor, faça login novamente.');
+                if (session) alert('Sessão expirada por inatividade. Por favor, faça login novamente.');
             } else {
                 localStorage.setItem('fp_last_active', now.toString());
             }
@@ -184,9 +184,9 @@ function MainApp() {
         };
     }, [session]);
 
-    // --- InicializaçÓo ---
+    // --- Inicialização ---
     useEffect(() => {
-        // Se nÓo estiver configurado, paramos o loading para cair na tela de login
+        // Se não estiver configurado, paramos o loading para cair na tela de login
         if (!isConfigured) {
             setLoading(false);
             return;
@@ -197,7 +197,7 @@ function MainApp() {
             if (session) loadData(session.user.id);
             else setLoading(false);
         }).catch(err => {
-            console.error("Erro ao verificar sessÓo:", err);
+            console.error("Erro ao verificar sessão:", err);
             setLoading(false);
         });
 
@@ -241,16 +241,16 @@ function MainApp() {
 
             let loadedConfig = DEFAULT_CATEGORIES;
 
-            // --- LOGICA DE MIGRAÓ‡ÓƒO DE DADOS ---
+            // --- LOGICA DE MIGRAÇÃO DE DADOS ---
             if (cats.data?.config) {
                 const serverConfig = cats.data.config;
 
-                // Migrar Investimentos (de fixed/variable fixos para grupos dinÓ¢micos)
+                // Migrar Investimentos (de fixed/variable fixos para grupos dinâmicos)
                 let newInvestments: any = {};
                 if (serverConfig.investment && Array.isArray(serverConfig.investment.fixed)) {
                     // Estrutura antiga detectada
                     newInvestments['RENDA FIXA'] = serverConfig.investment.fixed;
-                    newInvestments['RENDA VARIÓVEL'] = serverConfig.investment.variable || [];
+                    newInvestments['RENDA VARIÁVEL'] = serverConfig.investment.variable || [];
                     // Se houver targets antigos, ignoramos por enquanto pois a estrutura mudou
                 } else {
                     // Estrutura nova ou customizada
@@ -436,13 +436,13 @@ function MainApp() {
 
     // --- Handlers ---
     const handleUpdateCategories = async (newConfig: CategoryConfig) => {
-        // Remover atualizaçÓo otimista para depuraçÓo correta de persistÓªncia
+        // Remover atualização otimista para depuração correta de persistência
         // setData(prev => ({ ...prev, categoryConfig: newConfig })); - REMOVIDO PARA DEBUG
 
         console.log('[DEBUG_FLAVIA] Iniciando salvamento de categorias...', { categoryId, isConfigured });
 
         if (!isConfigured) {
-            console.warn('[DEBUG_FLAVIA] Supabase nÓo configurado. Salvando apenas localmente.');
+            console.warn('[DEBUG_FLAVIA] Supabase não configurado. Salvando apenas localmente.');
             setData(prev => ({ ...prev, categoryConfig: newConfig }));
             return;
         }
@@ -454,7 +454,7 @@ function MainApp() {
                 console.error('[DEBUG_FLAVIA] Erro ao atualizar:', error);
                 throw error; // Propagar erro para o chamador
             }
-            console.log('[DEBUG_FLAVIA] AtualizaçÓo de sucesso!');
+            console.log('[DEBUG_FLAVIA] Atualização de sucesso!');
         } else {
             console.log('[DEBUG_FLAVIA] Tentando criar novo registro de categorias...');
             const { data: ins, error } = await supabase.from('categories').insert({
@@ -487,7 +487,7 @@ function MainApp() {
         } catch (e) { console.error(e); }
     };
 
-    // CRUD TransaçÓµes, Metas e Investimentos
+    // CRUD Transações, Metas e Investimentos
     const handleEditGoal = async (updatedGoal: Goal) => {
         let finalGoal = { ...updatedGoal };
         if (finalGoal.linkedInvestmentIds && finalGoal.linkedInvestmentIds.length > 0) {
@@ -517,7 +517,7 @@ function MainApp() {
                 showToast('Meta criada com sucesso! 🚀', 'success');
             } else { loadData(session.user.id); }
         } else {
-            // Fallback local se nÓo estiver configurado
+            // Fallback local se não estiver configurado
             const id = Date.now().toString();
             setData(prev => ({ ...prev, goals: [...prev.goals, { ...safeGoal, id }] }));
         }
@@ -781,7 +781,7 @@ function MainApp() {
         }
     };
 
-    // NOVO: Manipulador de Resgate (Gera transaçÓo de receita)
+    // NOVO: Manipulador de Resgate (Gera transação de receita)
 
 
     const handleSaveTransaction = async (tx: Partial<Transaction>) => {
@@ -852,9 +852,11 @@ function MainApp() {
 
                                 if (isResgate) {
                                     // Redemption: History is negative. Transaction is positive.
-                                    matchAmount = Math.abs(h.amount) === amount || Math.abs(h.amount + amount) < 0.1;
+                                    // Strict Check: Amount must be negative in history
+                                    matchAmount = h.amount < 0 && (Math.abs(h.amount) === amount || Math.abs(h.amount + amount) < 0.1);
                                 } else {
-                                    matchAmount = Math.abs(h.amount - amount) < 0.1;
+                                    // Contribution/Expense: History is positive.
+                                    matchAmount = h.amount > 0 && Math.abs(h.amount - amount) < 0.1;
                                 }
 
                                 if (matchDate && matchAmount) {
@@ -906,17 +908,17 @@ function MainApp() {
         const now = new Date();
         const localDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD (Safe date)
 
-        // 1. Criar entrada no histÓ³rico
+        // 1. Criar entrada no histórico
         const historyEntry: HistoryEntry = {
             id: crypto.randomUUID(),
             date: localDate,
-            amount: -finalAmount, // Valor negativo para representar saÓ­da
+            amount: -finalAmount, // Valor negativo para representar saída
             description: 'Resgate Parcial',
             type: 'withdrawal',
             userId: session.user.id
         };
 
-        // 2. Atualizar Investimento (Reduzir CurrentValue e adicionar histÓ³rico)
+        // 2. Atualizar Investimento (Reduzir CurrentValue e adicionar histórico)
         const updatedInv = {
             ...inv,
             currentValue: Math.max(0, Number(inv.currentValue) - finalAmount),
@@ -926,7 +928,7 @@ function MainApp() {
         // Atualiza Investimento (Banco + Estado)
         await handleEditInvestment(updatedInv);
 
-        // 3. Gerar TransaçÓo de Receita (LÓ³gica da Main: Update Otimista + Insert Direto)
+        // 3. Gerar Transação de Receita (Lógica da Main: Update Otimista + Insert Direto)
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -947,7 +949,7 @@ function MainApp() {
 
         showToast(`Resgate de R$ ${finalAmount.toFixed(2)} realizado!`, "success");
 
-        // PersistÓªncia Direta com Mapeamento Correto
+        // Persistência Direta com Mapeamento Correto
         if (isConfigured) {
             const { error } = await supabase.from('transactions').insert({
                 user_id: session.user.id,
@@ -961,8 +963,8 @@ function MainApp() {
             });
 
             if (error) {
-                console.error('Erro ao salvar transaçÓo de resgate:', error);
-                showToast('Erro ao salvar transaçÓo: ' + error.message, 'error');
+                console.error('Erro ao salvar transação de resgate:', error);
+                showToast('Erro ao salvar transação: ' + error.message, 'error');
             } else {
                 // Opcional: Recarregar para confirmar
                 // loadData(session.user.id);
@@ -970,7 +972,7 @@ function MainApp() {
         }
     };
 
-    // Helper: Converte histórico de investimentos em transações de despesa para manter o saldo correto após exclusÓo
+    // Helper: Converte histórico de investimentos em transações de despesa para manter o saldo correto após exclusão
     const solidifyInvestmentHistory = async (inv: InvestmentAsset) => {
         const newTransactions: Transaction[] = [];
 
@@ -1093,7 +1095,7 @@ function MainApp() {
                 await handleInvestmentResgate(id, currentValue);
             }
 
-            // Ao excluir, solidifica o histÓ³rico de custo
+            // Ao excluir, solidifica o histórico de custo
             await solidifyInvestmentHistory(inv);
 
             if (isConfigured) {
@@ -1135,14 +1137,14 @@ function MainApp() {
             console.log('[DEBUG_FLAVIA] Inserindo nota na tabela...');
             const { error } = await supabase.from('mentor_notes').insert({
                 message,
-                author_name: 'FlÓ¡via (Mentora)',
+                author_name: 'Flávia (Mentora)',
                 author_email: session.user.email
             });
 
             if (error) throw error;
 
             await loadData(session.user.id);
-            showToast('Recado enviado para a famÓ­lia!', 'success');
+            showToast('Recado enviado para a família!', 'success');
         } catch (error: any) {
             console.error('[DEBUG_FLAVIA] Erro ao inserir:', error);
             showToast('Erro ao salvar: ' + (error.message || 'Desconhecido'), 'error');
@@ -1194,7 +1196,7 @@ function MainApp() {
     const paginatedTransactions = filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
     const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
 
-    // Mapeamento dos itens de navegaçÓo para reuso (Sidebar e Bottom Nav)
+    // Mapeamento dos itens de navegação para reuso (Sidebar e Bottom Nav)
     const navItems = [
         { id: 'dashboard', icon: LayoutDashboard, label: 'Visão Geral' },
         { id: 'weekly', icon: CalendarRange, label: 'Custos Semanais' },
@@ -1288,7 +1290,7 @@ function MainApp() {
                                         </div>
                                     </div>
                                     <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
-                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
+                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'Enriquecer é uma questão de escolha, não de sorte.'}"</p>
                                     </div>
                                 </div>
 
@@ -1314,7 +1316,7 @@ function MainApp() {
                                     </div>
                                 )}
 
-                                {/* CITAÓ‡ÓƒO DO DIA */}
+                                {/* CITAÇÃO DO DIA */}
                                 <div className="mt-6 bg-gradient-to-br from-indigo-50 to-blue-50 rounded-xl p-6 border border-indigo-100 relative">
                                     <Quote size={40} className="absolute top-4 left-4 text-indigo-200 opacity-50" />
                                     <div className="relative z-10 pl-6 md:pl-10">
@@ -1348,7 +1350,7 @@ function MainApp() {
                                             <input
                                                 id="mentor-input"
                                                 className="flex-1 bg-white border border-orange-200 rounded-xl px-4 py-3 text-sm outline-none focus:ring-2 focus:ring-orange-200"
-                                                placeholder="Escreva um recado para a famÓ­lia..."
+                                                placeholder="Escreva um recado para a família..."
                                                 onKeyDown={e => {
                                                     if (e.key === 'Enter') {
                                                         const val = e.currentTarget.value;
@@ -1368,7 +1370,7 @@ function MainApp() {
                                         </div>
                                     )}
 
-                                    {/* Lista de Recados (Filtrada por MÓªs) */}
+                                    {/* Lista de Recados (Filtrada por Mês) */}
                                     <div className="space-y-3 relative z-10">
                                         {mentorNotes && mentorNotes.filter(n => {
                                             const nDate = new Date(n.created_at);
@@ -1424,7 +1426,7 @@ function MainApp() {
                                                 </div>
                                             ))
                                         ) : (
-                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mÓªs.</p>
+                                            <p className="text-center text-slate-400 text-sm py-4 italic">Nenhum recado fixado neste mês.</p>
                                         )}
                                     </div>
                                 </div>
@@ -1435,13 +1437,13 @@ function MainApp() {
                                 <KPICard title="Receitas" value={kpiData.income} icon={TrendingUp} color="emerald" />
                                 <KPICard title="Despesas" value={kpiData.expense} icon={TrendingDown} color="rose" />
                                 <KPICard title="Saldo Final" value={kpiData.balance} icon={Wallet} color="blue" />
-                                <KPICard title="PatrimÓ´nio Total" value={kpiData.invested} icon={Briefcase} color="teal" />
+                                <KPICard title="Patrimônio Total" value={kpiData.invested} icon={Briefcase} color="teal" />
                             </div>
 
                             {/* EVOLUTION CHART */}
                             <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm">
                                 <div className="flex justify-between items-center mb-6">
-                                    <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base"><ArrowUpRight size={20} className="text-emerald-500" /> EvoluçÓo Patrimonial (6 Meses)</h3>
+                                    <h3 className="font-bold text-slate-700 flex items-center gap-2 text-sm md:text-base"><ArrowUpRight size={20} className="text-emerald-500" /> Evolução Patrimonial (6 Meses)</h3>
                                     <div className="flex items-center gap-2 text-xs">
                                         <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-emerald-500"></div> <span className="hidden sm:inline">Total</span></span>
                                         <span className="flex items-center gap-1"><div className="w-2 h-2 md:w-3 md:h-3 rounded-full bg-slate-300"></div> <span className="hidden sm:inline">Investido</span></span>
@@ -1469,7 +1471,7 @@ function MainApp() {
                                 </div>
                             </div>
 
-                            {/* GRÓFICOS INFERIORES RESPONSIVOS (Stack vertical no mobile) */}
+                            {/* GRÁFICOS INFERIORES RESPONSIVOS (Stack vertical no mobile) */}
                             <div className="flex flex-col lg:grid lg:grid-cols-2 gap-6 lg:h-[400px]">
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
                                     <h3 className="font-bold text-slate-700 mb-6">Receitas X Despesas</h3>
@@ -1478,7 +1480,7 @@ function MainApp() {
                                     </div>
                                 </div>
                                 <div className="bg-white p-6 rounded-2xl border border-slate-100 shadow-sm flex flex-col h-[300px] lg:h-full">
-                                    <h3 className="font-bold text-slate-700 mb-6">ComposiçÓo Financeira</h3>
+                                    <h3 className="font-bold text-slate-700 mb-6">Composição Financeira</h3>
                                     <div className="flex-1 min-h-0">
                                         <ResponsiveContainer width="100%" height="100%"><PieChart><Pie data={[{ name: 'Essencial', value: kpiData.expense * 0.6 }, { name: 'Estilo de Vida', value: kpiData.expense * 0.4 }, { name: 'Investimentos', value: kpiData.invested > 0 ? kpiData.invested * 0.1 : 0 }]} innerRadius={50} outerRadius={75} paddingAngle={5} dataKey="value" label={({ percent }) => `${(percent * 100).toFixed(0)}%`}>{PIE_COLORS.map((c, i) => <Cell key={i} fill={c} />)}</Pie><Legend verticalAlign="bottom" /></PieChart></ResponsiveContainer>
                                     </div>
@@ -1486,12 +1488,12 @@ function MainApp() {
                             </div>
 
                             <div className="bg-white rounded-2xl border border-slate-100 shadow-sm p-4 md:p-6">
-                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700">Óšltimas TransaçÓµes</h3><span className="text-xs text-slate-400">PÓ¡gina {currentPage + 1} de {totalPages || 1}</span></div>
+                                <div className="flex justify-between items-center mb-4"><h3 className="font-bold text-slate-700">Últimas Transações</h3><span className="text-xs text-slate-400">Página {currentPage + 1} de {totalPages || 1}</span></div>
 
                                 {/* Table Wrapper para scroll horizontal no mobile */}
                                 <div className="overflow-x-auto">
                                     <table className="w-full text-left min-w-[500px] md:min-w-full">
-                                        <thead className="text-slate-500 text-xs uppercase font-bold border-b border-slate-100"><tr><th className="py-3 px-2">TÓ­tulo</th><th className="py-3 px-2">Data</th><th className="py-3 px-2">Categoria</th><th className="py-3 px-2 text-right">Valor</th><th className="py-3 px-2"></th></tr></thead>
+                                        <thead className="text-slate-500 text-xs uppercase font-bold border-b border-slate-100"><tr><th className="py-3 px-2">Título</th><th className="py-3 px-2">Data</th><th className="py-3 px-2">Categoria</th><th className="py-3 px-2 text-right">Valor</th><th className="py-3 px-2"></th></tr></thead>
                                         <tbody className="text-sm">
                                             {paginatedTransactions.map(t => (
                                                 <tr key={t.id} onClick={() => !isReadOnly && openEditTransaction(t)} className={`border-b border-slate-50 hover:bg-slate-50 transition ${!isReadOnly ? 'cursor-pointer' : ''} group`}>
