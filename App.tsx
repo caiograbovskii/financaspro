@@ -656,7 +656,7 @@ function MainApp() {
         // O handleEditInvestment já sabe lidar com isso
         await handleEditInvestment(updatedInv);
 
-        // 3. Gerar Transação de Despesa
+        // 3. Gerar Transação de Despesa (Direct Insert for Reliability)
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -668,8 +668,32 @@ function MainApp() {
             paymentMethod: 'pix',
             description: `Aporte adicional de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
         };
-        await handleSaveTransaction(newTx);
-        showToast('Aporte registrado com sucesso!', 'success');
+
+        if (isConfigured) {
+            const { error: txError } = await supabase.from('transactions').insert({
+                id: newTx.id, // Force ID consistency
+                user_id: newTx.user_id,
+                title: newTx.title,
+                amount: newTx.amount,
+                type: newTx.type,
+                category: newTx.category,
+                date: newTx.date,
+                payment_method: newTx.paymentMethod,
+                description: newTx.description
+            });
+
+            if (txError) {
+                console.error('Erro ao salvar transação de aporte:', txError);
+                showToast('Erro ao registrar transação financeiro: ' + txError.message, 'error');
+            } else {
+                showToast('Aporte e Transação registrados!', 'success');
+                // Reload to sync everything
+                await loadData(session.user.id);
+            }
+        } else {
+            await handleSaveTransaction(newTx); // Fallback local
+            showToast('Aporte registrado (Local).', 'success');
+        }
     };
 
     // NOVO: Função para Sincronizar (Migrar) Investimentos antigos para o modelo de Transações
@@ -783,8 +807,8 @@ function MainApp() {
     const deleteTransaction = async (id: string) => {
         setConfirmModal({
             isOpen: true,
-            title: 'Excluir TransaçÓo',
-            message: 'Tem certeza que deseja remover esta transaçÓo? Essa açÓo Ó© irreversÓ­vel.',
+            title: 'Excluir Transação',
+            message: 'Tem certeza que deseja remover esta transação? Essa ação é irreversível.',
             type: 'danger',
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
@@ -792,7 +816,7 @@ function MainApp() {
                     const { error } = await supabase.from('transactions').delete().eq('id', id);
                     if (error) showToast('Erro ao excluir: ' + error.message, 'error');
                     else {
-                        showToast('TransaçÓo excluÓ­da', 'success');
+                        showToast('Transação excluída', 'success');
                         loadData(session.user.id);
                     }
                 } else {
@@ -1531,8 +1555,8 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
     const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
 
     const handleSave = () => {
-        if (form.date && form.date > today) { setErrors({ date: "Data futura nÓo permitida" }); return; }
-        if (!form.title) { setErrors({ title: "TÓ­tulo obrigatÓ³rio" }); return; }
+        if (form.date && form.date > today) { setErrors({ date: "Data futura não permitida" }); return; }
+        if (!form.title) { setErrors({ title: "Título obrigatório" }); return; }
 
         // Parse final amount
         const finalAmount = parseFloat(amountStr.replace(',', '.')) || 0;
@@ -1542,7 +1566,7 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
     return (
         <div onKeyDown={e => e.key === 'Enter' && handleSave()}>
             <button onClick={() => { setTxModalOpen(false); setEditingTransaction(null); }} className="absolute top-4 right-4 p-2 bg-slate-100 rounded-full hover:bg-slate-200 text-slate-500 transition"><X size={20} /></button>
-            <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} TransaçÓo</h3>
+            <h3 className="text-xl font-bold text-gray-900 mb-6">{editingTransaction ? 'Editar' : 'Nova'} Transação</h3>
 
             <div className="flex bg-slate-100 p-1 rounded-xl mb-6">
                 <button onClick={() => !editingTransaction && setForm({ ...form, type: 'expense' })} className={`flex-1 py-2 rounded-lg font-bold text-sm transition ${form.type === 'expense' ? 'bg-white text-rose-600 shadow-sm' : 'text-slate-500'}`}>Despesa</button>
@@ -1550,7 +1574,7 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
             </div>
 
             <div className="space-y-4">
-                <div><label className="text-xs font-bold text-slate-500 uppercase">TÓ­tulo</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase">Título</label><input className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.title || ''} onChange={e => setForm({ ...form, title: e.target.value })} placeholder="Ex: Mercado" />{errors.title && <p className="text-rose-500 text-xs">{errors.title}</p>}</div>
                 <div className="grid grid-cols-2 gap-4">
                     <div><label className="text-xs font-bold text-slate-500 uppercase">Valor</label><input type="number" step="0.01" className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={amountStr} onChange={e => setAmountStr(e.target.value)} placeholder="R$ 0,00" /></div>
                     <div><label className="text-xs font-bold text-slate-500 uppercase">Data</label><input type="date" max={today} className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg outline-none" value={form.date || ''} onChange={e => setForm({ ...form, date: e.target.value })} />{errors.date && <p className="text-rose-500 text-xs">{errors.date}</p>}</div>
@@ -1567,11 +1591,11 @@ function TransactionFormModal({ editingTransaction, data, handleSaveTransaction,
                 {form.type === 'expense' && (
                     <div>
                         <label className="text-xs font-bold text-slate-500 uppercase mb-2 block">Forma de Pagamento</label>
-                        <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÓ‰BITO' : m}</button>))}</div>
+                        <div className="flex flex-wrap gap-2 mb-4">{['pix', 'debit', 'boleto', 'cash'].map(m => (<button key={m} onClick={() => setForm({ ...form, paymentMethod: m as any })} className={`px-3 py-2 rounded-full text-xs font-bold border uppercase ${form.paymentMethod === m ? 'bg-slate-800 text-white' : 'bg-white text-slate-600 border-slate-200'}`}>{m === 'debit' ? 'DÉBITO' : m}</button>))}</div>
                     </div>
                 )}
 
-                <div><label className="text-xs font-bold text-slate-500 uppercase">DescriçÓo</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
+                <div><label className="text-xs font-bold text-slate-500 uppercase">Descrição</label><textarea className="w-full p-3 bg-white text-slate-900 border border-slate-300 rounded-lg h-20 outline-none" value={form.description || ''} onChange={e => setForm({ ...form, description: e.target.value })} /></div>
             </div>
             <button onClick={handleSave} className="w-full mt-6 bg-slate-900 text-white py-3 rounded-xl font-bold shadow-lg">Salvar</button>
         </div>
@@ -1611,7 +1635,7 @@ function SmartDeleteModal({ isOpen, inv, onClose, onProcess }: { isOpen: boolean
                     <button onClick={() => onProcess('delete')} className="w-full flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 transition group">
                         <div className="text-left">
                             <span className="block font-bold text-rose-700 text-sm">Excluir Card (Manter Saldo)</span>
-                            <span className="block text-[10px] text-rose-600/80">Apenas remove da visÓo. HistÓ³rico fica.</span>
+                            <span className="block text-[10px] text-rose-600/80">Apenas remove da visão. Histórico fica.</span>
                         </div>
                         <Trash2 size={18} className="text-rose-500" />
                     </button>

@@ -8,7 +8,7 @@ import {
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList, PieChart as RePieChart, Pie, Legend, Tooltip
 } from 'recharts';
 import {
-    ExpenseGroup, IncomeGroup, InvestmentGroup, CategoryConfig, InvestmentAsset, Goal, HistoryEntry // Adicionado HistoryEntry
+    ExpenseGroup, IncomeGroup, InvestmentGroup, CategoryConfig, InvestmentAsset, Goal, HistoryEntry, Transaction, WeeklyConfig
 } from '../types';
 
 // Importando as ferramentas compartilhadas
@@ -266,7 +266,9 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                             <div className="space-y-4">
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Nome</label><input className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.name || ''} onChange={e => setEditingGoal({ ...editingGoal, name: e.target.value })} /></div>
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Alvo</label><input type="number" step="0.01" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={amountStrings.target} onChange={e => setAmountStrings({ ...amountStrings, target: e.target.value })} /></div>
-                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Atual {hasLinkedInvestments && '(Calculado)'}</label><input type="number" step="0.01" disabled={hasLinkedInvestments} className={`w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-amber-500 transition ${hasLinkedInvestments ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-900'}`} value={amountStrings.current} onChange={e => setAmountStrings({ ...amountStrings, current: e.target.value })} /></div>
+                                {editingGoal.id && (
+                                    <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Atual {hasLinkedInvestments && '(Calculado)'}</label><input type="number" step="0.01" disabled={hasLinkedInvestments} className={`w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-amber-500 transition ${hasLinkedInvestments ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-900'}`} value={amountStrings.current} onChange={e => setAmountStrings({ ...amountStrings, current: e.target.value })} /></div>
+                                )}
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Data Limite (Opcional)</label><input type="date" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.deadline || ''} onChange={e => setEditingGoal({ ...editingGoal, deadline: e.target.value })} /></div>
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Vincular Investimentos (Máºltiplos)</label>
                                     <div className="border border-slate-200 rounded-xl p-2 max-h-40 overflow-y-auto custom-scroll bg-slate-50">
