@@ -22,15 +22,15 @@ const DAILY_QUOTES = [
     { text: "Ou você controla o seu dinheiro ou ele controlará você.", author: "T. Harv Eker", source: "Segredos da Mente Milionária" },
     { text: "Uma parte de tudo que você ganha pertence a você.", author: "George S. Clason", source: "O Homem Mais Rico da Babilônia" },
     { text: "Riqueza é o que você nã vê.", author: "Morgan Housel", source: "A Psicologia Financeira" },
-    { text: "Enriquecer é uma questã de escolha, nã de sorte.", author: "Gustavo Cerbasi", source: "Casais Inteligentes Enriquecem Juntos" },
-    { text: "Pobreza nã é falta de dinheiro, é falta de sabedoria.", author: "Tiago Brunet", source: "Dinheiro é Emocional" }
+    { text: "Enriquecer é uma questão de escolha, não de sorte.", author: "Gustavo Cerbasi", source: "Casais Inteligentes Enriquecem Juntos" },
+    { text: "Pobreza não é falta de dinheiro, é falta de sabedoria.", author: "Tiago Brunet", source: "Dinheiro é Emocional" }
 ];
 
 const SCORE_PHRASES = {
     high: [
         "Extraordinário! Você está no comando total.",
         "Uma fortaleza financeira inabalável.",
-        "Modo Mente Milionëria: ATIVADO. 🚀"
+        "Modo Mente Milionária: ATIVADO. 🚀"
     ],
     mid: [
         "Você está no caminho certo, continue firme.",
@@ -153,7 +153,7 @@ export const AIConseiller = {
             insights.push({
                 id: 'great-score',
                 type: 'success',
-                title: 'Excelente Gestã! 👑',
+                title: 'Excelente Gestão! 👑',
                 message: `Seu Score Financeiro é ${health.score}/100. Você está construindo riqueza sólida.`,
                 icon: Award,
                 color: 'emerald'
@@ -185,7 +185,7 @@ export const AIConseiller = {
                 id: 'goal-risk',
                 type: 'info',
                 title: 'Meta Desafiadora',
-                message: `A meta "${riskGoal.name}" exige atençã para ser atingida no prazo.`,
+                message: `A meta "${riskGoal.name}" exige atenção para ser atingida no prazo.`,
                 icon: Target,
                 color: 'blue'
             });
@@ -234,9 +234,9 @@ export const AIConseiller = {
         // 7. Insight Diário de Evoluçã (Novo)
         const dailyTips = [
             "Pague a si mesmo primeiro: Separe seu investimento assim que receber.",
-            "Evite compras por impulso: Espere 24h antes de comprar algo nã essencial.",
+            "Evite compras por impulso: Espere 24h antes de comprar algo não essencial.",
             "Revise suas assinaturas mensais. Você usa tudo o que paga?",
-            "Acompanhe suas metas semanalmente para nã perder o foco.",
+            "Acompanhe suas metas semanalmente para não perder o foco.",
             "Crie um fundo de reserva para imprevistos e durma tranquilo."
         ];
         // Usa o seed do dia para escolher uma dica
