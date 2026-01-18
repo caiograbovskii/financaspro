@@ -147,6 +147,7 @@ function MainApp() {
 
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
+    console.log("FinancePro Loaded: Version 2.1 - Fix Resgate Applied");
 
     // --- EFEITOS DE SESSÃO ---
 
