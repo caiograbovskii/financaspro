@@ -825,7 +825,7 @@ function MainApp() {
                 setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
 
                 // --- SYNC LOGIC: Check if it's an investment transaction ---
-                if (txToDelete && (txToDelete.category === 'Investimentos' || txToDelete.title.includes('Aporte'))) {
+                if (txToDelete && (txToDelete.category === 'Investimentos' || txToDelete.category === 'Resgate de Investimento' || txToDelete.title.includes('Aporte') || txToDelete.title.includes('Resgate'))) {
                     // Try to identify the asset by determining if any ticker is in the title
                     const relatedInv = data.investments.find(inv => txToDelete.title.toUpperCase().includes(inv.ticker.toUpperCase()));
 
@@ -880,8 +880,7 @@ function MainApp() {
                             showToast(`Saldo de ${relatedInv.ticker} revertido/sincronizado.`, 'success');
 
                         } catch (err) { console.error('Erro no sync de reversão', err); }
-                        await handleEditInvestment(updatedInv);
-                        showToast(`Saldo de ${relatedInv.ticker} revertido.`, 'success');
+
                     }
                 }
 
