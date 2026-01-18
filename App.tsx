@@ -362,11 +362,11 @@ function MainApp() {
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         const expense = filteredTransactions
-            .filter(t => t.type === 'expense' && t.category !== 'Investimentos')
+            .filter(t => t.type === 'expense' && !['Investimentos', 'Aportes'].includes(t.category) && !t.title.includes('Aporte') && !t.title.includes('Investimento'))
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         const investmentFlow = filteredTransactions
-            .filter(t => t.type === 'expense' && t.category === 'Investimentos')
+            .filter(t => t.type === 'expense' && (['Investimentos', 'Aportes'].includes(t.category) || t.title.includes('Aporte') || t.title.includes('Investimento')))
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         // NOVA LÓGICA (BANCÁRIA):
@@ -1100,7 +1100,7 @@ function MainApp() {
 
     // Mapeamento dos itens de navegaçÓo para reuso (Sidebar e Bottom Nav)
     const navItems = [
-        { id: 'dashboard', icon: LayoutDashboard, label: 'VisÓo Geral' },
+        { id: 'dashboard', icon: LayoutDashboard, label: 'Visão Geral' },
         { id: 'weekly', icon: CalendarRange, label: 'Custos Semanais' },
         { id: 'goals', icon: Target, label: 'Metas', c: 'bg-amber-50 text-amber-700' },
         { id: 'investments', icon: Briefcase, label: 'Investimentos', c: 'bg-teal-50 text-teal-700' },
@@ -1114,7 +1114,7 @@ function MainApp() {
             <aside className="hidden md:flex w-64 bg-white border-r border-slate-200 flex-col py-6 z-20 shadow-sm">
                 <div className="px-6 mb-8 w-full">
                     <div className="flex items-center gap-3 mb-1"><div className="w-8 h-8 bg-indigo-600 rounded-lg flex items-center justify-center text-white font-bold">FP</div><span className="text-xl font-bold">FinançasPRO</span></div>
-                    <p className="text-xs text-slate-400 pl-11">FamÓ­lia Grabovskii</p>
+                    <p className="text-xs text-slate-400 pl-11">Família Grabovskii</p>
                 </div>
                 <nav className="flex-1 px-3 space-y-2">
                     {navItems.filter(i => i.id !== 'settings').map(item => (
@@ -1124,7 +1124,7 @@ function MainApp() {
                     ))}
                 </nav>
                 <div className="px-3 mt-auto space-y-2">
-                    <button onClick={() => setActiveModule('settings')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl ${activeModule === 'settings' ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}><Settings size={20} /><span className="text-sm">ConfiguraçÓµes</span></button>
+                    <button onClick={() => setActiveModule('settings')} className={`w-full flex items-center gap-3 px-3 py-3 rounded-xl ${activeModule === 'settings' ? 'bg-slate-100 text-slate-900' : 'text-slate-400'}`}><Settings size={20} /><span className="text-sm">Configurações</span></button>
                     <button onClick={handleLogout} className="w-full flex items-center gap-3 px-3 py-3 rounded-xl text-rose-500 hover:bg-rose-50"><LogOut size={20} /><span className="text-sm">Sair</span></button>
                 </div>
             </aside>
@@ -1134,13 +1134,13 @@ function MainApp() {
                     <div className="flex flex-col">
                         <div className='flex flex-col md:flex-row md:items-baseline md:gap-2'>
                             <h1 className="text-lg md:text-2xl font-bold text-slate-800 capitalize truncate max-w-[150px] md:max-w-none">
-                                {activeModule === 'dashboard' ? 'VisÓo Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'ConfiguraçÓµes'}
+                                {activeModule === 'dashboard' ? 'Visão Geral' : activeModule === 'weekly' ? 'Custos Semanais' : activeModule === 'goals' ? 'Metas' : activeModule === 'investments' ? 'Investimentos' : 'Configurações'}
                             </h1>
                             {activeModule === 'dashboard' && session?.user?.email && (
                                 <span className="text-xs md:text-lg font-medium text-slate-500">
-                                    {session.user.email === 'caio@casa.com' ? 'OlÓ¡ Caio' :
-                                        session.user.email === 'carla@casa.com' ? 'OlÓ¡ Carla' :
-                                            session.user.email === 'flavia@mentora.com' ? 'OlÓ¡ FlÓ¡via' : ''}
+                                    {session.user.email === 'caio@casa.com' ? 'Olá Caio' :
+                                        session.user.email === 'carla@casa.com' ? 'Olá Carla' :
+                                            session.user.email === 'flavia@mentora.com' ? 'Olá Flávia' : ''}
                                 </span>
                             )}
                         </div>

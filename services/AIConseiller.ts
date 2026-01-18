@@ -12,35 +12,35 @@ export interface Insight {
 }
 
 const DAILY_QUOTES = [
-    { text: "Os planos bem elaborados levam ë  fartura; mas o apressado acaba na misë©ria.", author: "Provë©rbios 21:5 (NVT)", source: "Bë­blia Sagrada" },
-    { text: "Quem ama o dinheiro jamais terë¡ o suficiente; quem ama a riqueza jamais ficarë¡ satisfeito.", author: "Eclesiastes 5:10 (NVT)", source: "Bë­blia Sagrada" },
-    { text: "A sabedoria preserva a vida de quem a possui.", author: "Eclesiastes 7:12 (NVT)", source: "Bë­blia Sagrada" },
-    { text: "O rico domina sobre o pobre; quem toma emprestado ë© escravo de quem empresta.", author: "Provë©rbios 22:7 (NVT)", source: "Bë­blia Sagrada" },
-    { text: "A riqueza obtida com desonestidade diminuirë¡, mas quem a ajunta aos poucos a farë¡ aumentar.", author: "Provë©rbios 13:11 (NVT)", source: "Bë­blia Sagrada" },
-    { text: "Nëo trabalhe pelo dinheiro. Faça o dinheiro trabalhar para você.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
-    { text: "Ativos pëµem dinheiro no seu bolso. Passivos tiram dinheiro do seu bolso.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
-    { text: "Ou você controla o seu dinheiro ou ele controlarë¡ você.", author: "T. Harv Eker", source: "Segredos da Mente Milionë¡ria" },
-    { text: "Uma parte de tudo que você ganha pertence a você.", author: "George S. Clason", source: "O Homem Mais Rico da Babilë´nia" },
-    { text: "Riqueza ë© o que você nëo vê.", author: "Morgan Housel", source: "A Psicologia Financeira" },
-    { text: "Enriquecer ë© uma questëo de escolha, nëo de sorte.", author: "Gustavo Cerbasi", source: "Casais Inteligentes Enriquecem Juntos" },
-    { text: "Pobreza nëo ë© falta de dinheiro, ë© falta de sabedoria.", author: "Tiago Brunet", source: "Dinheiro ë© Emocional" }
+    { text: "Os planos bem elaborados levam à fartura; mas o apressado acaba na miséria.", author: "Provérbios 21:5 (NVT)", source: "Bíblia Sagrada" },
+    { text: "Quem ama o dinheiro jamais terá o suficiente; quem ama a riqueza jamais ficará satisfeito.", author: "Eclesiastes 5:10 (NVT)", source: "Bíblia Sagrada" },
+    { text: "A sabedoria preserva a vida de quem a possui.", author: "Eclesiastes 7:12 (NVT)", source: "Bíblia Sagrada" },
+    { text: "O rico domina sobre o pobre; quem toma emprestado é escravo de quem empresta.", author: "Provérbios 22:7 (NVT)", source: "Bíblia Sagrada" },
+    { text: "A riqueza obtida com desonestidade diminuirá, mas quem a ajunta aos poucos a fará aumentar.", author: "Provérbios 13:11 (NVT)", source: "Bíblia Sagrada" },
+    { text: "Não trabalhe pelo dinheiro. Faça o dinheiro trabalhar para você.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
+    { text: "Ativos põem dinheiro no seu bolso. Passivos tiram dinheiro do seu bolso.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
+    { text: "Ou você controla o seu dinheiro ou ele controlará você.", author: "T. Harv Eker", source: "Segredos da Mente Milionária" },
+    { text: "Uma parte de tudo que você ganha pertence a você.", author: "George S. Clason", source: "O Homem Mais Rico da Babilônia" },
+    { text: "Riqueza é o que você nã vê.", author: "Morgan Housel", source: "A Psicologia Financeira" },
+    { text: "Enriquecer é uma questã de escolha, nã de sorte.", author: "Gustavo Cerbasi", source: "Casais Inteligentes Enriquecem Juntos" },
+    { text: "Pobreza nã é falta de dinheiro, é falta de sabedoria.", author: "Tiago Brunet", source: "Dinheiro é Emocional" }
 ];
 
 const SCORE_PHRASES = {
     high: [
-        "Extraordinë¡rio! Você estë¡ no comando total.",
-        "Uma fortaleza financeira inabalë¡vel.",
+        "Extraordinário! Você está no comando total.",
+        "Uma fortaleza financeira inabalável.",
         "Modo Mente Milionëria: ATIVADO. 🚀"
     ],
     mid: [
-        "Você estë¡ no caminho certo, continue firme.",
-        "Bom trabalho, mas ainda hë¡ margem para otimizar.",
-        "Constë¢ncia ë© a chave."
+        "Você está no caminho certo, continue firme.",
+        "Bom trabalho, mas ainda há margem para otimizar.",
+        "Constância é a chave."
     ],
     low: [
         "Alerta: Precisamos estancar esse sangramento agora.",
-        "Atençëo total: Sua saëºde financeira pede socorro.",
-        "O primeiro passo para sair do buraco ë© parar de cavar."
+        "Atenção total: Sua saúde financeira pede socorro.",
+        "O primeiro passo para sair do buraco é parar de cavar."
     ]
 };
 
@@ -110,7 +110,7 @@ export const AIConseiller = {
         const scorePhrases = health.score >= 80 ? SCORE_PHRASES.high : health.score >= 60 ? SCORE_PHRASES.mid : SCORE_PHRASES.low;
         health.details = scorePhrases[seed % scorePhrases.length];
 
-        // --- GERAë‡ëƒO DE INSIGHTS (Lë³gica Determinë­stica e Objetiva) ---
+        // --- GERAÇÃO DE INSIGHTS (Lógica Determinística e Objetiva) ---
 
         // 1. O Efeito Latte (Gastos Pequenos Acumulados)
         // Regra: Gastos < R$ 50 que somados representam mais de 5% da renda ou > R$ 400 absolutos
@@ -122,14 +122,14 @@ export const AIConseiller = {
             insights.push({
                 id: 'latte-effect',
                 type: 'warning',
-                title: 'Atençëo aos Pequenos Gastos',
+                title: 'Atenção aos Pequenos Gastos',
                 message: `Pequenas compras acumularam R$ ${smallPurchases.toFixed(2)} este mês.`,
                 icon: Coffee,
                 color: 'orange'
             });
         }
 
-        // 2. Anë¡lise de Estilo de Vida (Restaurantes/Lazer/Apps)
+        // 2. Análise de Estilo de Vida (Restaurantes/Lazer/Apps)
         // Regra: Categorias de lazer > 20% da renda
         const lifestyleKeywords = ['restaurante', 'ifood', 'uber', 'lazer', 'bar', 'cinema', 'streaming', 'assinatura', 'delivery'];
         const lifestyleExpense = currentMonthTxs.filter(t => {
@@ -153,8 +153,8 @@ export const AIConseiller = {
             insights.push({
                 id: 'great-score',
                 type: 'success',
-                title: 'Excelente Gestëo! ðŸ‘‘',
-                message: `Seu Score Financeiro ë© ${health.score}/100. Você estë¡ construindo riqueza së³lida.`,
+                title: 'Excelente Gestã! 👑',
+                message: `Seu Score Financeiro é ${health.score}/100. Você está construindo riqueza sólida.`,
                 icon: Award,
                 color: 'emerald'
             });
@@ -162,8 +162,8 @@ export const AIConseiller = {
             insights.push({
                 id: 'crisis-mode',
                 type: 'warning',
-                title: 'Atençëo Necessë¡ria',
-                message: `Seu Score ë© ${health.score}/100. Revise seus gastos essenciais para equilibrar o orçamento.`,
+                title: 'Atenção Necessária',
+                message: `Seu Score é ${health.score}/100. Revise seus gastos essenciais para equilibrar o orçamento.`,
                 icon: Zap,
                 color: 'rose'
             });
@@ -175,8 +175,8 @@ export const AIConseiller = {
             const deadline = new Date(g.deadline);
             const remainingMonths = (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30);
             const remainingAmount = g.targetAmount - g.currentAmount;
-            if (remainingMonths <= 0) return remainingAmount > 0; // Jë¡ venceu e nëo atingiu
-            // Se precisar economizar mais de 30% da renda mensal para atingir a meta, estë¡ em risco
+            if (remainingMonths <= 0) return remainingAmount > 0; // Já venceu e nã atingiu
+            // Se precisar economizar mais de 30% da renda mensal para atingir a meta, está em risco
             return (remainingMonths > 0 && (remainingAmount / remainingMonths) > (income * 0.3));
         });
 
@@ -185,30 +185,30 @@ export const AIConseiller = {
                 id: 'goal-risk',
                 type: 'info',
                 title: 'Meta Desafiadora',
-                message: `A meta "${riskGoal.name}" exige atençëo para ser atingida no prazo.`,
+                message: `A meta "${riskGoal.name}" exige atençã para ser atingida no prazo.`,
                 icon: Target,
                 color: 'blue'
             });
         }
 
-        // 5. Citaçëo do Dia (Global)
+        // 5. Citaçã do Dia (Global)
         const daySeed = (today.getFullYear() * 1000) + (today.getMonth() * 31) + today.getDate();
         const quoteIndex = daySeed % DAILY_QUOTES.length;
         const dailyQuote = DAILY_QUOTES[quoteIndex];
 
-        // 6. Oportunidade de Investimento Inteligente (Sem restriçëo de dia > 20, agora > dia 5)
+        // 6. Oportunidade de Investimento Inteligente (Sem restriçã de dia > 20, agora > dia 5)
         const balance = income - expense - (totalInvested - (investments.reduce((acc, inv) => acc + (inv.history?.find(h => {
             const [y, m] = h.date.split('-').map(Number);
             return m - 1 === month && y === year && h.amount > 0;
         })?.amount || 0), 0))); // Tenta aproximar o caixa real subtraindo investimentos feitos??
-        // Simplificaçëo: Balance = Receita - Despesa - (Investimentos que aumentaram este mês?)
+        // Simplificaçã: Balance = Receita - Despesa - (Investimentos que aumentaram este mês?)
 
-        // Melhor abordagem: O AIConseiller recebe 'transactions'. Nëo temos o 'cash flow' exato dos investimentos aqui sem a lë³gica complexa do App.
-        // Mas podemos assumir que se o usuë¡rio jë¡ investiu, nëo queremos contar isso como excedente.
-        // Vou usar: surplus = income - expense - (investimentos totais * 0.1) se nëo tiver histë³rico.
-        // Në‚O. O usuë¡rio disse: "Eu nao tenho isso".
-        // O cë¡lculo do App usa: balance = income - expense - investmentOutflow.
-        // Vou tentar replicar uma lë³gica simples: income - expense - (sum of positive investment history in current month).
+        // Melhor abordagem: O AIConseiller recebe 'transactions'. Não temos o 'cash flow' exato dos investimentos aqui sem a lógica complexa do App.
+        // Mas podemos assumir que se o usuário já investiu, nã queremos contar isso como excedente.
+        // Vou usar: surplus = income - expense - (investimentos totais * 0.1) se nã tiver histórico.
+        // NÃO. O usuário disse: "Eu nao tenho isso".
+        // O cálculo do App usa: balance = income - expense - investmentOutflow.
+        // Vou tentar replicar uma lógica simples: income - expense - (sum of positive investment history in current month).
 
         const investmentOutflow = investments.reduce((sum, inv) => {
             const hist = (inv.history || []).filter(h => {
@@ -225,26 +225,26 @@ export const AIConseiller = {
                 id: 'invest-opp',
                 type: 'idea',
                 title: 'Excedente de Caixa',
-                message: `Você tem R$ ${balance.toFixed(2)} disponë­veis. Que tal aportar em seus investimentos?`,
+                message: `Você tem R$ ${balance.toFixed(2)} disponíveis. Que tal aportar em seus investimentos?`,
                 icon: TrendingUp,
                 color: 'purple'
             });
         }
 
-        // 7. Insight Dië¡rio de Evoluçëo (Novo)
+        // 7. Insight Diário de Evoluçã (Novo)
         const dailyTips = [
             "Pague a si mesmo primeiro: Separe seu investimento assim que receber.",
-            "Evite compras por impulso: Espere 24h antes de comprar algo nëo essencial.",
+            "Evite compras por impulso: Espere 24h antes de comprar algo nã essencial.",
             "Revise suas assinaturas mensais. Você usa tudo o que paga?",
-            "Acompanhe suas metas semanalmente para nëo perder o foco.",
+            "Acompanhe suas metas semanalmente para nã perder o foco.",
             "Crie um fundo de reserva para imprevistos e durma tranquilo."
         ];
         // Usa o seed do dia para escolher uma dica
-        if (insights.length < 3) { // Së³ mostra se nëo houver muitos alertas crë­ticos
+        if (insights.length < 3) { // Só mostra se nã houver muitos alertas críticos
             insights.push({
                 id: 'daily-tip',
                 type: 'info',
-                title: 'Dica do Dia ðŸ’¡',
+                title: 'Dica do Dia 💡',
                 message: dailyTips[daySeed % dailyTips.length],
                 icon: Brain,
                 color: 'indigo'
