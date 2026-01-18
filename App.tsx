@@ -632,7 +632,7 @@ function MainApp() {
         const finalAmount = Number(amount);
         const nowStr = new Date().toISOString().split('T')[0];
 
-        // 1. Criar novo item de histÓ³rico
+        // 1. Criar novo item de histórico
         const newHistoryItem: HistoryEntry = {
             id: crypto.randomUUID(),
             date: nowStr,
@@ -641,6 +641,8 @@ function MainApp() {
             type: 'contribution',
             userId: session.user.id
         };
+
+
 
         const updatedHistory = [...(inv.history || []), newHistoryItem];
         const newTotal = updatedHistory.reduce((acc, h) => acc + h.amount, 0);
@@ -669,9 +671,15 @@ function MainApp() {
             description: `Aporte adicional de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
         };
 
+        // ATUALIZAÇÃO OTIMISTA IMEDIATA (Critical Fix for "First Deposit" delay)
+        setData(prev => ({
+            ...prev,
+            transactions: [newTx, ...prev.transactions]
+        }));
+
         if (isConfigured) {
             const { error: txError } = await supabase.from('transactions').insert({
-                id: newTx.id, // Force ID consistency
+                id: newTx.id,
                 user_id: newTx.user_id,
                 title: newTx.title,
                 amount: newTx.amount,
@@ -686,12 +694,11 @@ function MainApp() {
                 console.error('Erro ao salvar transação de aporte:', txError);
                 showToast('Erro ao registrar transação financeiro: ' + txError.message, 'error');
             } else {
-                showToast('Aporte e Transação registrados!', 'success');
-                // Reload to sync everything
-                await loadData(session.user.id);
+                showToast('Aporte realizado com sucesso!', 'success');
+                // LoadData pode ser lento, mas o Otimista já resolveu o display.
+                // loadData(session.user.id);
             }
         } else {
-            await handleSaveTransaction(newTx); // Fallback local
             showToast('Aporte registrado (Local).', 'success');
         }
     };
@@ -805,6 +812,8 @@ function MainApp() {
     };
 
     const deleteTransaction = async (id: string) => {
+        const txToDelete = data.transactions.find(t => t.id === id);
+
         setConfirmModal({
             isOpen: true,
             title: 'Excluir Transação',
@@ -812,6 +821,36 @@ function MainApp() {
             type: 'danger',
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
+
+                // --- SYNC LOGIC: Check if it's an investment transaction ---
+                if (txToDelete && (txToDelete.category === 'Investimentos' || txToDelete.title.includes('Aporte'))) {
+                    // Try to identify the asset by determining if any ticker is in the title
+                    const relatedInv = data.investments.find(inv => txToDelete.title.toUpperCase().includes(inv.ticker.toUpperCase()));
+
+                    if (relatedInv) {
+                        const amount = Number(txToDelete.amount);
+
+                        // Reverse the math
+                        const newTotal = Math.max(0, relatedInv.totalInvested - amount);
+                        const newCurrent = Math.max(0, relatedInv.currentValue - amount);
+
+                        // Remove from history (Find ONE matching entry)
+                        let removedFound = false;
+                        const newHistory = (relatedInv.history || []).filter(h => {
+                            // Match loosely by amount and date
+                            if (!removedFound && Math.abs(h.amount - amount) < 0.1 && h.date === txToDelete.date) {
+                                removedFound = true;
+                                return false;
+                            }
+                            return true;
+                        });
+
+                        const updatedInv = { ...relatedInv, totalInvested: newTotal, currentValue: newCurrent, history: newHistory };
+                        await handleEditInvestment(updatedInv);
+                        showToast(`Saldo de ${relatedInv.ticker} revertido.`, 'success');
+                    }
+                }
+
                 if (isConfigured) {
                     const { error } = await supabase.from('transactions').delete().eq('id', id);
                     if (error) showToast('Erro ao excluir: ' + error.message, 'error');
