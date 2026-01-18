@@ -7,6 +7,7 @@ export interface HistoryEntry {
   date: string;
   amount: number;
   description?: string;
+  type?: 'contribution' | 'withdrawal' | 'yield' | 'correction';
   userId?: string;
 }
 
@@ -23,6 +24,7 @@ export interface Transaction {
   installmentTotal?: number;
   parentTransactionId?: string;
   user_id?: string;
+  created_at?: string;
 }
 
 export interface WeeklyConfig {

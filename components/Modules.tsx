@@ -1,14 +1,14 @@
-import React, { useState, useEffect, useMemo } from 'react';
+﻿import React, { useState, useEffect, useMemo } from 'react';
 import {
     Plus, PieChart,
-    Trash2, Edit2, Save, X, Activity, ChevronDown, ChevronUp, Check, FolderPlus,
+    Trash2, Edit2, Save, X, Activity, ChevronDown, ChevronUp, ArrowUpRight, Check, FolderPlus,
     PiggyBank, TrendingUp, Wallet, Briefcase, Layers, LogOut, Shield
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, LabelList, PieChart as RePieChart, Pie, Legend, Tooltip
 } from 'recharts';
 import {
-    Transaction, WeeklyConfig, Goal, InvestmentAsset, CategoryConfig
+    ExpenseGroup, IncomeGroup, InvestmentGroup, CategoryConfig, InvestmentAsset, Goal, HistoryEntry, Transaction, WeeklyConfig
 } from '../types';
 
 // Importando as ferramentas compartilhadas
@@ -21,7 +21,7 @@ import { useToast } from './SharedUI';
 
 const CHART_COLORS = ['#3b82f6', '#10b981', '#f59e0b', '#ef4444', '#8b5cf6', '#6366f1', '#ec4899', '#14b8a6'];
 
-// --- Módulo Semanal ---
+// --- Má³dulo Semanal ---
 interface WeeklyProps {
     transactions: Transaction[];
     configs: WeeklyConfig[];
@@ -43,7 +43,7 @@ import { supabase } from '../supabaseClient'; // Need to ensure supabase is impo
 
 
 
-// --- HELPER PARA EDITAR TÍTULO ---
+// --- HELPER PARA EDITAR TáTULO ---
 const EditableGroupTitle = ({ initialName, onRename, readOnly }: { initialName: string, onRename: (n: string) => void, readOnly?: boolean }) => {
     const [isEditing, setIsEditing] = useState(false);
     const [name, setName] = useState(initialName);
@@ -83,7 +83,7 @@ const EditableGroupTitle = ({ initialName, onRename, readOnly }: { initialName: 
 export const WeeklyCosts: React.FC<WeeklyProps> = ({
     transactions, configs, updateConfig, onEditTransaction, readOnly, onSaveConfig, onDeleteTransaction
 }) => {
-    const getWeekTransactions = (config: WeeklyConfig) => transactions.filter(t => t.type === 'expense' && t.date >= config.startDate && t.date <= config.endDate);
+    const getWeekTransactions = (config: WeeklyConfig) => transactions.filter(t => t.type === 'expense' && t.category !== 'Investimentos' && t.date >= config.startDate && t.date <= config.endDate);
 
     const getCategoryData = (txs: Transaction[]) => {
         const data: Record<string, number> = {};
@@ -161,7 +161,7 @@ export const WeeklyCosts: React.FC<WeeklyProps> = ({
     );
 };
 
-// --- Módulo Metas ---
+// --- Má³dulo Metas ---
 interface GoalsProps {
     goals: Goal[];
     investments: InvestmentAsset[];
@@ -266,7 +266,7 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                             <div className="space-y-4">
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Nome</label><input className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.name || ''} onChange={e => setEditingGoal({ ...editingGoal, name: e.target.value })} /></div>
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Alvo</label><input type="number" step="0.01" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={amountStrings.target} onChange={e => setAmountStrings({ ...amountStrings, target: e.target.value })} /></div>
-                                <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Valor Atual {hasLinkedInvestments && '(Calculado)'}</label><input type="number" step="0.01" disabled={hasLinkedInvestments} className={`w-full p-3 border border-slate-300 rounded-xl outline-none focus:border-amber-500 transition ${hasLinkedInvestments ? 'bg-slate-100 text-slate-500' : 'bg-white text-slate-900'}`} value={amountStrings.current} onChange={e => setAmountStrings({ ...amountStrings, current: e.target.value })} /></div>
+                                {/* "Valor Atual" removido conforme solicitação, agora é 100% calculado ou gerido internamente */}
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-1 block">Data Limite (Opcional)</label><input type="date" className="w-full p-3 border border-slate-300 rounded-xl bg-white text-slate-900 outline-none focus:border-amber-500 transition" value={editingGoal.deadline || ''} onChange={e => setEditingGoal({ ...editingGoal, deadline: e.target.value })} /></div>
                                 <div><label className="text-xs font-bold text-slate-400 uppercase ml-1 mb-2 block">Vincular Investimentos (Múltiplos)</label>
                                     <div className="border border-slate-200 rounded-xl p-2 max-h-40 overflow-y-auto custom-scroll bg-slate-50">
@@ -301,7 +301,7 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
                             <div className="absolute top-3 right-3 z-20 flex gap-2 items-center"><UserDot userId={goal.user_id} userMap={userMap} /></div>
                             <div className="flex justify-between items-start mb-2 relative z-10 pt-2"><h3 className="font-bold text-lg text-slate-800">{goal.name}</h3>{!readOnly && (<div className="flex gap-2"><button onClick={(e) => { e.stopPropagation(); openGoalModal(goal); }} className="text-slate-300 hover:text-amber-500 transition p-2"><Edit2 size={16} className="pointer-events-none" /></button><button type="button" onClick={(e) => { e.preventDefault(); e.stopPropagation(); onDeleteGoal(goal.id); }} className="relative z-50 p-2 text-slate-400 hover:text-rose-500 hover:bg-rose-50 rounded-full transition-colors"><Trash2 size={18} className="pointer-events-none" /></button></div>)}</div>
                             <div className="bg-slate-50 p-3 rounded-lg mb-4 border border-slate-100"><div className="flex justify-between text-sm mb-1"><span className="text-slate-500">Atual</span><span className="font-bold text-slate-700">R$ {(goal.currentAmount || 0).toLocaleString()}</span></div><div className="flex justify-between text-sm"><span className="text-slate-500">Alvo</span><span className="font-bold text-slate-700">R$ {(goal.targetAmount || 0).toLocaleString()}</span></div></div>
-                            <div className="relative pt-1"><div className="overflow-hidden h-2 mb-2 text-xs flex rounded bg-amber-100"><div style={{ width: `${progress}%` }} className="bg-amber-500 transition-all duration-1000"></div></div>{suggestion !== null && (<div className="text-xs text-center font-bold text-amber-600">Sugestão: R$ {suggestion.toFixed(2)} / mês</div>)}</div>
+                            <div className="relative pt-1"><div className="overflow-hidden h-2 mb-2 text-xs flex rounded bg-amber-100"><div style={{ width: `${progress}%` }} className="bg-amber-500 transition-all duration-1000"></div></div>{suggestion !== null && (<div className="text-xs text-center font-bold text-amber-600">Sugestáo: R$ {suggestion.toFixed(2)} / máªs</div>)}</div>
                         </Card>
                     )
                 })}
@@ -310,7 +310,7 @@ export const GoalsView: React.FC<GoalsProps> = ({ goals, investments, onAddGoal,
     );
 };
 
-// --- Módulo Investimentos ---
+// --- Má³dulo Investimentos ---
 interface InvestProps {
     investments: InvestmentAsset[];
     categories: string[];
@@ -364,23 +364,49 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 
     const totalAssets = useMemo(() => investments.reduce((acc, inv) => acc + (inv.currentValue || 0), 0), [investments]);
 
-    // CORREÇÃO: Verifica se é edição ou adição para evitar duplicação
+    // CORREá‡áƒO: Verifica se á© ediçáo ou adiçáo para evitar duplicaçáo
     const handleSave = () => {
         const finalTotal = parseFloat(invStrings.total.replace(',', '.')) || 0;
         const finalCurrent = parseFloat(invStrings.current.replace(',', '.')) || 0;
 
-        // Se current value for 0 mas total invested tiver valor e for novo, assume current = total (facilita entrada)
-        const adjustedCurrent = (finalCurrent === 0 && finalTotal > 0 && !editingInv.id) ? finalTotal : finalCurrent;
-
-        const invToSave = {
-            ...editingInv,
-            totalInvested: finalTotal,
-            currentValue: adjustedCurrent
-        } as InvestmentAsset;
+        let invToSave: InvestmentAsset;
 
         if (editingInv.id) {
+            // EDIT MODE: 
+            // 1. Calcula a diferença (Rendimento ou Prejuá­zo)
+            const oldValue = Number(editingInv.currentValue || 0);
+            const diff = finalCurrent - oldValue;
+
+            let newHistory = editingInv.history || [];
+
+            // Se houve mudança no saldo, registra como Yield
+            if (diff !== 0) { // Tolerá¢ncia de float pode ser necessá¡ria, mas JS lida ok com diferença exata aqui
+                const yieldEntry: HistoryEntry = {
+                    id: crypto.randomUUID(),
+                    date: new Date().toISOString().split('T')[0],
+                    amount: diff,
+                    description: diff > 0 ? 'Rendimento de Saldo' : 'Correçáo de Saldo (Negativa)',
+                    type: 'yield',
+                    userId: currentUserId
+                };
+                newHistory = [...newHistory, yieldEntry];
+            }
+
+            invToSave = {
+                ...editingInv as InvestmentAsset,
+                currentValue: finalCurrent,
+                history: newHistory
+                // totalInvested náo á© alterado pelo input de saldo
+            };
             onEditInvestment(invToSave);
         } else {
+            // CREATE MODE: Total = Current = Input
+            invToSave = {
+                ...editingInv as InvestmentAsset,
+                totalInvested: finalTotal,
+                currentValue: finalTotal,
+                // O App.tsx já¡ cria o histá³rico inicial "Aporte Inicial"
+            };
             onAddInvestment(invToSave);
         }
         setShowForm(false);
@@ -423,7 +449,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                 className={`px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition border ${showAnalysis ? 'bg-indigo-50 text-indigo-700 border-indigo-200' : 'bg-white text-slate-600 border-slate-200 hover:bg-slate-50'}`}
                             >
                                 <Activity size={18} />
-                                <span className="hidden sm:inline">Composição</span>
+                                <span className="hidden sm:inline">Composiçáo</span>
                                 {showAnalysis ? <ChevronUp size={16} /> : <ChevronDown size={16} />}
                             </button>
 
@@ -439,7 +465,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
             {/* Collapsible Analysis Section (Pie Chart) */}
             {showAnalysis && (
                 <div className="animate-fade-in-down bg-white rounded-2xl border border-slate-200 p-6 shadow-sm">
-                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><PieChart size={20} className="text-indigo-500" /> Alocação por Categoria</h3>
+                    <h3 className="font-bold text-slate-700 mb-4 flex items-center gap-2"><PieChart size={20} className="text-indigo-500" /> Alocaçáo por Categoria</h3>
 
                     <div className="h-64 w-full">
                         <ResponsiveContainer width="100%" height="100%">
@@ -468,7 +494,7 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
             {/* ASSETS GRID */}
             <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-6">
                 {investments.map(inv => {
-                    // CORREÇÃO: Estilização específica para Cofrinho/Caixinhas e Padrão Verde
+                    // CORREá‡áƒO: Estilizaçáo especá­fica para Cofrinho/Caixinhas e Padráo Verde
                     const isPiggy = inv.category.toLowerCase().includes('cofrinho') || inv.category.toLowerCase().includes('caixinha') || inv.category.toLowerCase().includes('poupança');
                     const cardClass = isPiggy
                         ? "bg-teal-50 border-teal-200 hover:border-teal-400"
@@ -514,36 +540,57 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
 
                             <div className="mt-4 pt-4 border-t border-black/5" onClick={e => e.stopPropagation()}>
                                 {aporteMode === inv.id ? (
-                                    <div className="flex gap-2 items-center animate-fade-in">
-                                        <input
-                                            autoFocus
-                                            type="number"
-                                            className="w-full p-2 text-sm border border-indigo-200 rounded-lg focus:border-indigo-500 outline-none text-slate-900 bg-white"
-                                            placeholder="R$ Valor"
-                                            value={aporteValue}
-                                            onChange={e => setAporteValue(e.target.value)}
-                                            onKeyDown={e => e.key === 'Enter' && handleAporte(inv.id)}
-                                        />
-                                        <button onClick={() => handleAporte(inv.id)} className="p-2 bg-indigo-500 text-white rounded-lg hover:bg-indigo-600 shadow-sm"><Check size={16} /></button>
-                                        <button onClick={() => setAporteMode(null)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={16} /></button>
+                                    <div className="flex flex-col gap-2 animate-fade-in">
+                                        <div className="flex gap-2 items-center">
+                                            <input
+                                                autoFocus
+                                                type="number"
+                                                className="w-full p-2 text-sm border border-indigo-200 rounded-lg focus:border-indigo-500 outline-none text-slate-900 bg-white"
+                                                placeholder="R$ Valor"
+                                                value={aporteValue}
+                                                onChange={e => setAporteValue(e.target.value)}
+                                                onKeyDown={e => e.key === 'Enter' && handleAporte(inv.id)}
+                                            />
+                                            <button onClick={() => setAporteMode(null)} className="p-2 bg-slate-100 text-slate-500 rounded-lg hover:bg-slate-200"><X size={16} /></button>
+                                        </div>
+                                        {/* Botáµes de Açáo para o Input Aberto */}
+                                        <div className="flex gap-2">
+                                            <button
+                                                onClick={() => handleAporte(inv.id)}
+                                                className={`flex-1 py-2 rounded-lg font-bold text-white text-xs uppercase tracking-wide shadow-sm flex items-center justify-center gap-2 ${isPiggy ? 'bg-teal-500 hover:bg-teal-600' : 'bg-emerald-500 hover:bg-emerald-600'}`}
+                                            >
+                                                <Plus size={14} /> Depositar
+                                            </button>
+
+                                            <button
+                                                onClick={() => {
+                                                    const val = Number(aporteValue);
+                                                    if (!val || val <= 0) return;
+                                                    // Verifica se tem saldo suficiente
+                                                    if (val > inv.currentValue) {
+                                                        alert('Saldo insuficiente para resgate.');
+                                                        return;
+                                                    }
+                                                    // Chama onResgatar (que precisa ser passado via props)
+                                                    // Como onResgatar náo está¡ no escopo local do componente Card, precisamos garantir que ele venha de props
+                                                    // Assumindo que o componente pai passa onResgatar para InvestmentPortfolio e ele para aqui.
+                                                    // Mas wait, handleAporte á© local aqui. Precisamos de handleResgate local tambá©m.
+                                                    if (onResgatar) onResgatar(inv.id, val);
+                                                    setAporteMode(null);
+                                                    setAporteValue('');
+                                                }}
+                                                className="flex-1 py-2 rounded-lg font-bold text-slate-600 bg-slate-100 hover:bg-slate-200 text-xs uppercase tracking-wide shadow-sm flex items-center justify-center gap-2"
+                                            >
+                                                <ArrowUpRight size={14} /> Resgatar
+                                            </button>
+                                        </div>
                                     </div>
                                 ) : (
                                     <div className="flex gap-2">
                                         {!readOnly && (
-                                            <>
-                                                <button onClick={() => { setAporteMode(inv.id); setAporteValue(''); }} className={`flex-1 py-1.5 text-xs font-bold text-white rounded-lg transition shadow-sm ${isPiggy ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}>
-                                                    Aportar
-                                                </button>
-                                                {/* Botão de Resgate */}
-                                                <button
-                                                    onClick={() => {
-                                                        setRedeemModal({ isOpen: true, inv });
-                                                    }}
-                                                    className="px-3 py-1.5 text-xs font-bold text-slate-500 bg-white border border-slate-200 rounded-lg hover:bg-slate-50 hover:text-rose-500 transition"
-                                                >
-                                                    Resgatar
-                                                </button>
-                                            </>
+                                            <button onClick={() => { setAporteMode(inv.id); setAporteValue(''); }} className={`w-full py-2 text-xs font-bold text-white rounded-lg transition shadow-sm flex items-center justify-center gap-2 ${isPiggy ? 'bg-teal-500 hover:bg-teal-600 shadow-teal-200' : 'bg-emerald-500 hover:bg-emerald-600 shadow-emerald-200'}`}>
+                                                Movimentar <ChevronUp size={14} />
+                                            </button>
                                         )}
                                     </div>
                                 )}
@@ -562,7 +609,6 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                         <div className="overflow-y-auto custom-scroll pr-2 space-y-4">
                             <div><label className="text-[10px] uppercase font-bold text-slate-400">Nome / Ticker</label><input className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={editingInv.ticker || ''} onChange={e => setEditingInv({ ...editingInv, ticker: e.target.value })} /></div>
                             <div><label className="text-[10px] uppercase font-bold text-slate-400">Categoria</label>
-                                {/* CORREÇÃO: Select agrupado por grupos dinâmicos */}
                                 <select className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={editingInv.category || ''} onChange={e => setEditingInv({ ...editingInv, category: e.target.value })}>
                                     {Object.entries(config.investment).map(([group, items]) => (
                                         <optgroup key={group} label={group}>
@@ -571,11 +617,37 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                     ))}
                                 </select>
                             </div>
-                            <div className="grid grid-cols-2 gap-2">
-                                <div className="grid grid-cols-2 gap-2">
-                                    <div><label className="text-[10px] uppercase font-bold text-slate-400">Total Investido</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.total} onChange={e => setInvStrings({ ...invStrings, total: e.target.value })} /></div>
-                                    {editingInv.id && <div><label className="text-[10px] uppercase font-bold text-slate-400">Valor Atual</label><input type="number" step="0.01" className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900" value={invStrings.current} onChange={e => setInvStrings({ ...invStrings, current: e.target.value })} /></div>}
-                                </div>
+
+                            <div className="space-y-4">
+                                {!editingInv.id ? (
+                                    /* CREATE MODE: Input áºnico */
+                                    <div>
+                                        <label className="text-[10px] uppercase font-bold text-slate-400">Investimento Inicial (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"
+                                            placeholder="0,00"
+                                            value={invStrings.total}
+                                            onChange={e => setInvStrings({ ...invStrings, total: e.target.value, current: e.target.value })}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Este valor será¡ o custo inicial e o saldo inicial.</p>
+                                    </div>
+                                ) : (
+                                    /* EDIT MODE: Input áºnico para saldo */
+                                    <div>
+                                        <label className="text-[10px] uppercase font-bold text-slate-400">Atualizar Saldo Atual (R$)</label>
+                                        <input
+                                            type="number"
+                                            step="0.01"
+                                            className="w-full p-2 border border-slate-300 rounded bg-white text-slate-900"
+                                            placeholder="0,00"
+                                            value={invStrings.current}
+                                            onChange={e => setInvStrings({ ...invStrings, current: e.target.value })}
+                                        />
+                                        <p className="text-[10px] text-slate-400 mt-1">Atualize apenas o valor de mercado (rendimentos). Para novos aportes, use o botáo "Aportar" no card.</p>
+                                    </div>
+                                )}
 
                                 {editingInv.id && (
                                     <HistoryManager
@@ -583,7 +655,6 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                                         onChange={(h) => {
                                             const newTotal = h.reduce((acc, item) => acc + item.amount, 0);
                                             setEditingInv({ ...editingInv, history: h, totalInvested: newTotal });
-                                            setInvStrings(prev => ({ ...prev, total: newTotal.toString() }));
                                         }}
                                         currentUserId={currentUserId}
                                         userMap={userMap}
@@ -598,42 +669,12 @@ export const InvestmentPortfolio: React.FC<InvestProps> = ({
                         </div>
                     </div>
                 </div>
-            )}
-
-            {/* Modal de Resgate */}
-            {redeemModal.isOpen && redeemModal.inv && (
-                <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4" onClick={() => setRedeemModal({ isOpen: false, inv: null })}>
-                    <div className="bg-white rounded-2xl shadow-xl w-full max-w-sm p-6 animate-fade-in-up" onClick={e => e.stopPropagation()}>
-                        <h3 className="font-bold text-slate-800 text-lg mb-2">Resgatar {redeemModal.inv.ticker}</h3>
-                        <p className="text-slate-500 text-sm mb-4">Saldo disponível: R$ {redeemModal.inv.currentValue.toFixed(2)}</p>
-
-                        <div className="mb-6">
-                            <label className="text-xs font-bold text-slate-500 uppercase">Valor do Resgate</label>
-                            <input
-                                autoFocus
-                                type="number"
-                                className="w-full p-3 border border-slate-300 rounded-xl text-xl font-bold text-slate-800 outline-none focus:border-indigo-500 mt-1"
-                                placeholder="0,00"
-                                value={redeemValue}
-                                onChange={e => setRedeemValue(e.target.value)}
-                                onKeyDown={e => e.key === 'Enter' && handleConfirmRedeem()}
-                            />
-                        </div>
-
-                        <div className="flex gap-3">
-                            <button onClick={() => setRedeemModal({ isOpen: false, inv: null })} className="flex-1 py-3 text-slate-600 font-bold bg-slate-100 rounded-xl hover:bg-slate-200 transition">Cancelar</button>
-                            <button onClick={handleConfirmRedeem} className="flex-1 py-3 text-white font-bold bg-slate-900 rounded-xl hover:bg-slate-800 transition shadow-lg">Confirmar</button>
-                        </div>
-                    </div>
-                </div>
-            )}
-        </div>
-    )
-}
-
+            )}    </div>
+    );
+};
 
 // --- SETTINGS VIEW ---
-export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void }> = ({ config, onUpdate, readOnly, onLogout }) => {
+export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: CategoryConfig) => void, readOnly?: boolean, onLogout?: () => void, onSync?: () => void }> = ({ config, onUpdate, readOnly, onLogout, onSync }) => {
     const { showToast } = useToast();
     const [localConfig, setLocalConfig] = useState<CategoryConfig>(config);
     const [activeTab, setActiveTab] = useState<'expenses' | 'investments' | 'income' | 'security'>('expenses');
@@ -653,7 +694,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         setLocalConfig(safeConfig);
     }, [config]);
 
-    const handleSave = () => { onUpdate(localConfig); showToast("Configurações salvas com sucesso!", "success"); };
+    const handleSave = () => { onUpdate(localConfig); showToast("Configuraçáµes salvas com sucesso!", "success"); };
 
     const renameGroup = (oldName: string, newName: string) => {
         if (!newName || !newName.trim() || newName === oldName) return;
@@ -661,7 +702,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         const sectionKey = activeTab === 'expenses' ? 'expense' : activeTab === 'investments' ? 'investment' : 'income';
 
         if (safeConfig[sectionKey][newName]) {
-            showToast('Já existe um grupo com este nome.', 'error');
+            showToast('Já¡ existe um grupo com este nome.', 'error');
             return;
         }
 
@@ -674,7 +715,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         showToast('Grupo renomeado!', 'success');
     };
 
-    // --- LÓGICA GENÉRICA PARA GRUPOS E ITENS ---
+    // --- Lá“GICA GENá‰RICA PARA GRUPOS E ITENS ---
     // Mapeia a aba ativa para a chave correspondente no config
     // Mapeia a aba ativa para a chave correspondente no config
     const activeKey = activeTab === 'expenses' ? 'expense' : activeTab === 'investments' ? 'investment' : activeTab === 'income' ? 'income' : null;
@@ -682,7 +723,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
     const addGroup = () => {
         if (!newGroup.trim()) return;
         const currentGroups = localConfig[activeKey] as Record<string, string[]>;
-        if (currentGroups[newGroup]) { showToast('Grupo já existe!', 'error'); return; }
+        if (currentGroups[newGroup]) { showToast('Grupo já¡ existe!', 'error'); return; }
 
         setLocalConfig(prev => ({
             ...prev,
@@ -691,7 +732,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         setNewGroup('');
     };
 
-    // CORREÇÃO FINAL: Exclusão com cópia profunda e atualização imediata do servidor
+    // CORREá‡áƒO FINAL: Exclusáo com cá³pia profunda e atualizaçáo imediata do servidor
     const deleteGroup = (groupToDelete: string, e: React.MouseEvent) => {
         try {
             e.preventDefault();
@@ -699,11 +740,11 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
 
             if (!confirm(`Tem certeza que deseja excluir o grupo "${groupToDelete}" e todos os itens dentro dele?`)) return;
 
-            // Usa clone profundo via JSON para garantir que não haja referências mantidas
+            // Usa clone profundo via JSON para garantir que náo haja referáªncias mantidas
             const safeConfig = JSON.parse(JSON.stringify(localConfig));
             const sectionKey = activeTab === 'expenses' ? 'expense' : activeTab === 'investments' ? 'investment' : 'income';
 
-            // Garante que a seção existe antes de tentar deletar
+            // Garante que a seçáo existe antes de tentar deletar
             if (!safeConfig[sectionKey]) safeConfig[sectionKey] = {};
 
             // Remove a propriedade do objeto
@@ -717,7 +758,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
 
             // Atualiza servidor/pai IMEDIATAMENTE
             onUpdate(safeConfig);
-            showToast('Grupo excluído com sucesso!', 'success');
+            showToast('Grupo excluá­do com sucesso!', 'success');
         } catch (error) {
             console.error("Erro ao excluir grupo:", error);
             showToast("Erro ao excluir grupo.", 'error');
@@ -728,7 +769,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         if (!newItem.item.trim() || newItem.group !== group) return;
 
         setLocalConfig(prev => {
-            // Lógica de update local para addItem (ainda requer "Salvar" para persistir, ou podemos fazer imediato se desejado - mantendo padrão atual)
+            // Lá³gica de update local para addItem (ainda requer "Salvar" para persistir, ou podemos fazer imediato se desejado - mantendo padráo atual)
             const currentGroups = prev[activeKey] as Record<string, string[]>;
             const currentItems = currentGroups[group] || [];
 
@@ -754,7 +795,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
             if (currentGroups && currentGroups[group]) {
                 currentGroups[group] = currentGroups[group].filter((i: string) => i !== itemToDelete);
 
-                // Salva IMEDIATAMENTE ao excluir item também
+                // Salva IMEDIATAMENTE ao excluir item tambá©m
                 setLocalConfig(safeConfig);
                 onUpdate(safeConfig);
             }
@@ -763,7 +804,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
         }
     };
 
-    // Configuração de cores por aba
+    // Configuraçáo de cores por aba
     const theme = activeTab === 'expenses' ? 'rose' : activeTab === 'investments' ? 'indigo' : 'emerald';
     const ThemeIcon = activeTab === 'expenses' ? Layers : activeTab === 'investments' ? Briefcase : Wallet;
     const themeText = activeTab === 'expenses' ? 'text-rose-600' : activeTab === 'investments' ? 'text-indigo-600' : 'text-emerald-600';
@@ -776,12 +817,12 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
             {/* Header */}
             <div className="flex flex-col md:flex-row md:items-center justify-between gap-4">
                 <div>
-                    <h2 className="text-2xl font-bold text-slate-800">Configurações</h2>
+                    <h2 className="text-2xl font-bold text-slate-800">Configuraçáµes</h2>
                     <p className="text-sm text-slate-500">Gerencie suas categorias e grupos.</p>
                 </div>
                 {!readOnly && (
                     <button onClick={handleSave} className="bg-slate-900 text-white px-6 py-3 rounded-xl font-bold shadow-lg shadow-slate-200 hover:bg-slate-800 transition flex items-center gap-2 w-full md:w-auto justify-center">
-                        <Save size={18} /> Salvar Alterações
+                        <Save size={18} /> Salvar Alteraçáµes
                     </button>
                 )}
             </div>
@@ -801,8 +842,8 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
                     {activeTab === 'security' ? (
                         <div className="flex flex-col items-center justify-center py-20 text-slate-400">
                             <Shield size={48} className="mb-4 text-slate-300" />
-                            <h3 className="text-lg font-bold text-slate-600">Área de Segurança</h3>
-                            <p className="text-sm">Configurações de segurança em breve.</p>
+                            <h3 className="text-lg font-bold text-slate-600">área de Segurança</h3>
+                            <p className="text-sm">Configuraçáµes de segurança em breve.</p>
                         </div>
                     ) : (
                         <div className="space-y-6">
@@ -811,10 +852,24 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
                                 <div className="flex items-center gap-2">
                                     <div className={`p-2 rounded-lg ${themeBg} ${themeText}`}><ThemeIcon size={20} /></div>
                                     <div>
+                                        {activeTab === 'investments' && (
+                                            <>
+                                                {!readOnly && onSync && (
+                                                    <div className="mb-4 bg-blue-50 p-4 rounded-xl border border-blue-100 flex items-center justify-between">
+                                                        <div>
+                                                            <h4 className="font-bold text-blue-700 text-sm">Sincronizaçáo de Saldo</h4>
+                                                            <p className="text-xs text-blue-500">Gera transaçáµes retroativas para investimentos antigos.</p>
+                                                        </div>
+                                                        <button onClick={onSync} className="px-4 py-2 bg-blue-600 text-white rounded-lg font-bold text-xs shadow-sm hover:bg-blue-700 transition">Sincronizar Agora</button>
+                                                    </div>
+                                                )}
+                                                <h3 className="font-bold text-slate-700 mb-4">Categorias de Investimentos</h3>
+                                            </>
+                                        )}
                                         <h3 className="font-bold text-slate-700">
                                             {activeTab === 'expenses' ? 'Grupos de Despesa' : activeTab === 'investments' ? 'Grupos de Investimento' : 'Grupos de Receita'}
                                         </h3>
-                                        <p className="text-xs text-slate-400">Agrupamento para organização</p>
+                                        <p className="text-xs text-slate-400">Agrupamento para organizaçáo</p>
                                     </div>
                                 </div>
                                 {!readOnly && (
@@ -879,7 +934,7 @@ export const SettingsView: React.FC<{ config: CategoryConfig, onUpdate: (c: Cate
                     )}
                 </div>
 
-                {/* BOTÃO DE SAIR - APENAS VISÍVEL NO MOBILE DENTRO DE SETTINGS (POIS SIDEBAR ESTÁ OCULTA) */}
+                {/* BOTáƒO DE SAIR - APENAS VISáVEL NO MOBILE DENTRO DE SETTINGS (POIS SIDEBAR ESTá OCULTA) */}
                 <div className="md:hidden pt-8 border-t border-slate-100 mt-8">
                     <button onClick={onLogout} className="w-full bg-rose-50 text-rose-600 py-3 rounded-xl font-bold flex items-center justify-center gap-2 hover:bg-rose-100 transition">
                         <LogOut size={20} />

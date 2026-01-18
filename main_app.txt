@@ -1,10 +1,10 @@
-﻿import React, { useState, useEffect, useMemo } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import {
     LayoutDashboard, CalendarRange, Target,
     Briefcase, Plus, ChevronLeft, ChevronRight,
     TrendingUp, TrendingDown, Wallet, Settings, LogOut, X,
     Edit2, Trash2, ArrowUpRight, AlertTriangle, Trophy, Calendar, Info, Menu,
-    RefreshCcw, MessageSquare, Send, Star, User, Brain, Quote, Check
+    RefreshCcw, MessageSquare, Send, Star, User, Brain, Quote
 } from 'lucide-react';
 import {
     BarChart, Bar, XAxis, CartesianGrid, LabelList, ResponsiveContainer,
@@ -13,11 +13,11 @@ import {
 import { supabase, isConfigured } from './supabaseClient';
 import {
     Transaction, AppState, Goal, InvestmentAsset,
-    DateFilter, CategoryConfig, UserRole, HistoryEntry
+    DateFilter, CategoryConfig, UserRole
 } from './types';
 import { ToastProvider, Celebration, useToast } from './components/SharedUI';
 
-// Importa apenas os mÓ³dulos ativos
+// Importa apenas os módulos ativos
 import { WeeklyCosts, GoalsView, InvestmentPortfolio, SettingsView } from './components/Modules';
 import { AIConseiller } from './services/AIConseiller';
 import { ConfirmDialog } from './components/SharedUI';
@@ -57,8 +57,8 @@ const INITIAL_STATE: AppState = {
     investments: [],
     weeklyConfigs: Array(5).fill(null).map((_, i) => ({
         weekIndex: i,
-        startDate: new Date().toLocaleDateString('sv-SE'),
-        endDate: new Date().toLocaleDateString('sv-SE')
+        startDate: new Date().toISOString().split('T')[0],
+        endDate: new Date().toISOString().split('T')[0]
     })),
     categoryConfig: DEFAULT_CATEGORIES
 };
@@ -135,7 +135,7 @@ function MainApp() {
     const [txModalOpen, setTxModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [currentPage, setCurrentPage] = useState(0);
-    const ITEMS_PER_PAGE = 10;
+    const ITEMS_PER_PAGE = 5;
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
     const [refreshSeed, setRefreshSeed] = useState(0);
     const [mentorNotes, setMentorNotes] = useState<any[]>([]);
@@ -144,10 +144,8 @@ function MainApp() {
     const [smartDeleteModal, setSmartDeleteModal] = useState<{ isOpen: boolean, inv: InvestmentAsset | null }>({ isOpen: false, inv: null });
     const [confirmModal, setConfirmModal] = useState({ isOpen: false, title: '', message: '', onConfirm: () => { }, type: 'danger' as any });
 
-
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
-    console.log("FinancePro Loaded: Version 2.2 - UX & Timezone Fixes");
 
     // --- EFEITOS DE SESSÃO ---
 
@@ -363,16 +361,38 @@ function MainApp() {
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         const expense = filteredTransactions
-            .filter(t => t.type === 'expense' && !['Investimentos', 'Aportes'].includes(t.category) && !t.title.includes('Aporte') && !t.title.includes('Investimento'))
+            .filter(t => t.type === 'expense')
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-        const investmentFlow = filteredTransactions
-            .filter(t => t.type === 'expense' && (['Investimentos', 'Aportes'].includes(t.category) || t.title.includes('Aporte') || t.title.includes('Investimento')))
-            .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+        // CORREÇÃO: Calcular fluxo de saída para investimentos (Dinheiro que saiu da conta)
+        // Lógica: Soma de todos os Aportes (Histórico > 0) + Aporte Inicial (se não estiver no historico)
+        const investmentOutflow = data.investments.reduce((sum, inv) => {
+            // 1. Histórico no período (APENAS APORTES POSITIVOS)
+            const historySum = (inv.history || []).reduce((hSum, h) => {
+                const parts = h.date.split('-');
+                const hYear = parseInt(parts[0]);
+                const hMonth = parseInt(parts[1]) - 1;
+                // Ignora resgates (-). O resgate vira uma transação de Receita.
+                return (hMonth === dateFilter.month && hYear === dateFilter.year && h.amount > 0) ? hSum + Number(h.amount) : hSum;
+            }, 0);
 
-        // NOVA LÓGICA (BANCÁRIA):
-        // Balance = Receita - Despesa - Aportes.
-        // O KPI 'Despesas' mostra apenas gastos operacionais.
+            // 2. Aporte Inicial (Saldo Inicial não registrado no histórico)
+            let initialOutflow = 0;
+            if (inv.purchaseDate) {
+                const pParts = inv.purchaseDate.split('T')[0].split('-');
+                const pYear = parseInt(pParts[0]);
+                const pMonth = parseInt(pParts[1]) - 1;
+
+                if (pMonth === dateFilter.month && pYear === dateFilter.year) {
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((acc, h) => acc + Number(h.amount), 0);
+                    // Se TotalInvested > Soma dos Aportes, a diferença é o inicial
+                    const initial = Number(inv.totalInvested || 0) - totalHistoryInvested;
+                    if (initial > 0) initialOutflow = initial;
+                }
+            }
+
+            return sum + historySum + initialOutflow;
+        }, 0);
 
         const totalInvestedCurrent = data.investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0);
         const totalUnlinkedGoals = data.goals
@@ -382,7 +402,8 @@ function MainApp() {
         return {
             income,
             expense,
-            balance: income - expense - investmentFlow,
+            // Balance = Receita - Despesa - Dinheiro Enviado para Investimentos
+            balance: income - expense - investmentOutflow,
             invested: totalInvestedCurrent + totalUnlinkedGoals
         };
     }, [filteredTransactions, data.investments, data.goals]);
@@ -408,7 +429,17 @@ function MainApp() {
                 .filter(t => t.type === 'expense' && t.date <= eom)
                 .reduce((a, b) => a + Number(b.amount || 0), 0);
 
-            const balance = accIncome - accExpense; // Simples e direto
+            const accInvestmentOutflow = data.investments.reduce((sum, inv) => {
+                let initial = 0;
+                if (inv.purchaseDate && inv.purchaseDate <= eom) {
+                    const totalHistoryInvested = (inv.history || []).filter(h => h.amount > 0).reduce((hSum, h) => hSum + Number(h.amount), 0);
+                    initial = Math.max(0, Number(inv.totalInvested || 0) - totalHistoryInvested);
+                }
+                const hist = (inv.history || []).filter(h => h.date <= eom && h.amount > 0).reduce((hSum, h) => hSum + Number(h.amount), 0);
+                return sum + initial + hist;
+            }, 0);
+
+            const balance = accIncome - accExpense - accInvestmentOutflow;
 
             const invested = data.investments
                 .filter(i => !i.purchaseDate || i.purchaseDate <= eom)
@@ -547,19 +578,17 @@ function MainApp() {
     };
 
     const handleAddInvestment = async (newInv: InvestmentAsset) => {
-
-        const now = new Date().toISOString(); // Full ISO string for created_at/system usage
-        const localDate = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD Local
+        // CORREÇÃO: Adicionar purchaseDate imediato e Histórico Inicial Obrigatório
+        const now = new Date().toISOString();
         let safeHistory = newInv.history || [];
         const initialAmount = Number(newInv.totalInvested || 0);
 
         if (initialAmount > 0 && safeHistory.length === 0) {
             safeHistory = [{
-                id: crypto.randomUUID(),
-                date: localDate,
+                id: Date.now().toString(),
+                date: now.split('T')[0],
                 amount: initialAmount,
                 description: 'Aporte Inicial',
-                type: 'contribution',
                 userId: session.user.id
             }];
         }
@@ -573,22 +602,9 @@ function MainApp() {
             user_id: session.user.id
         };
 
-        // CRIAR TRANSAÇÃO DE DESPESA (FLUXO DE CAIXA)
-        const newTx: Transaction = {
-            id: crypto.randomUUID(),
-            user_id: session.user.id,
-            title: `Investimento: ${safeInv.ticker}`,
-            amount: initialAmount,
-            type: 'expense',
-            category: 'Investimentos',
-            date: localDate,
-            paymentMethod: 'pix',
-            description: `Aporte inicial em ${safeInv.ticker}`, // UTF-8 Fixed
-            created_at: now
-        };
-
         if (isConfigured) {
-            const { data: inserted, error } = await supabase.from('investments').insert({
+            setData(prev => ({ ...prev, investments: [...prev.investments, safeInv] }));
+            const { data: inserted } = await supabase.from('investments').insert({
                 user_id: session.user.id,
                 ticker: safeInv.ticker,
                 category: safeInv.category,
@@ -597,201 +613,76 @@ function MainApp() {
                 current_value: safeInv.currentValue,
                 history: safeInv.history
             }).select().single();
-
-            if (error) {
-                console.error('Erro ao adicionar investimento:', error);
-                showToast('Erro ao criar: ' + error.message, 'error');
-                return;
-            }
-
-            // Salva Transação de Saída no Banco
-            if (initialAmount > 0) {
-                await supabase.from('transactions').insert(newTx);
-            }
-
-            if (inserted) {
-                setData(prev => ({
-                    ...prev,
-                    investments: [...prev.investments, { ...safeInv, id: inserted.id }],
-                    transactions: initialAmount > 0 ? [...prev.transactions, newTx] : prev.transactions
-                }));
-                showToast('Investimento criado com sucesso!', 'success');
-            }
+            if (inserted) setData(prev => ({ ...prev, investments: prev.investments.map(i => i.id === safeInv.id ? { ...i, id: inserted.id } : i) }));
         } else {
             const id = Date.now().toString();
-            setData(prev => ({
-                ...prev,
-                investments: [...prev.investments, { ...safeInv, id }],
-                transactions: initialAmount > 0 ? [...prev.transactions, newTx] : prev.transactions
-            }));
-            showToast('Investimento criado (Local).', 'success');
+            setData(prev => ({ ...prev, investments: [...prev.investments, { ...safeInv, id }] }));
         }
     };
 
-    const handleInvestmentAporte = async (id: string, amount: number) => {
+    const handleInvestmentAporte = async (invId: string, amount: number) => {
+        const inv = data.investments.find(i => i.id === invId);
+        if (!inv) return;
+        const newHistoryItem = { id: Date.now().toString(), date: new Date().toISOString().split('T')[0], amount, description: 'Aporte Rápido', userId: session.user.id };
+        const updatedInv = { ...inv, history: [...(inv.history || []), newHistoryItem], totalInvested: (inv.totalInvested || 0) + amount, currentValue: (inv.currentValue || 0) + amount };
+        handleEditInvestment(updatedInv);
+    };
+
+    // NOVO: Manipulador de Resgate (Gera transação de receita)
+    const handleInvestmentResgate = async (id: string, amount: number) => {
         const inv = data.investments.find(i => i.id === id);
         if (!inv) return;
+        const now = new Date();
+        const localDate = now.toLocaleDateString('pt-BR').split('/').reverse().join('-'); // YYYY-MM-DD
 
         const finalAmount = Number(amount);
-        const nowFull = new Date().toISOString();
-        const nowStr = new Date().toLocaleDateString('sv-SE');
 
-        // 1. Criar novo item de histórico
-        const newHistoryItem: HistoryEntry = {
-            id: crypto.randomUUID(),
-            date: nowStr,
-            amount: finalAmount,
-            description: 'Aporte Adicional',
-            type: 'contribution',
-            userId: session.user.id
-        };
-
-
-
-        const updatedHistory = [...(inv.history || []), newHistoryItem];
-        const newTotal = updatedHistory.reduce((acc, h) => acc + h.amount, 0);
-
-        // 2. Atualizar Investimento (Soma ao total e ao atual)
+        // 1. Atualizar Investimento (Reduzir apenas CurrentValue, manter TotalInvested para fins de custo)
         const updatedInv = {
             ...inv,
-            totalInvested: newTotal,
-            currentValue: Number(inv.currentValue) + finalAmount,
-            history: updatedHistory
+            currentValue: Math.max(0, Number(inv.currentValue) - finalAmount)
         };
 
-        // O handleEditInvestment já sabe lidar com isso
-        await handleEditInvestment(updatedInv);
+        handleEditInvestment(updatedInv);
 
-        // 3. Gerar Transação de Despesa (Direct Insert for Reliability)
+        // 2. Gerar Transação de Receita
         const newTx: Transaction = {
-            id: crypto.randomUUID(),
+            id: crypto.randomUUID(), // Gera UUID válido para o Supabase
             user_id: session.user.id,
-            title: `Aporte: ${inv.ticker}`,
+            title: `Resgate: ${inv.ticker}`,
             amount: finalAmount,
-            type: 'expense',
-            category: 'Investimentos',
-            date: nowStr,
-            paymentMethod: 'pix',
-            description: `Aporte adicional de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
-            created_at: nowFull
+            type: 'income',
+            category: 'Resgate de Investimento',
+            date: localDate,
+            paymentMethod: 'pix', // Default
+            description: 'Resgate automático gerado pelo sistema'
         };
 
-        // ATUALIZAÇÃO OTIMISTA IMEDIATA (Critical Fix for "First Deposit" delay)
         setData(prev => ({
             ...prev,
-            transactions: [newTx, ...prev.transactions]
+            investments: prev.investments.map(i => i.id === id ? updatedInv : i),
+            transactions: [...prev.transactions, newTx]
         }));
 
+        showToast(`Resgate de R$ ${finalAmount.toFixed(2)} realizado!`, "success");
+
         if (isConfigured) {
-            const { error: txError } = await supabase.from('transactions').insert({
-                id: newTx.id,
-                user_id: newTx.user_id,
+            await supabase.from('transactions').insert({
+                user_id: session.user.id,
                 title: newTx.title,
                 amount: newTx.amount,
                 type: newTx.type,
                 category: newTx.category,
                 date: newTx.date,
                 payment_method: newTx.paymentMethod,
-                description: newTx.description,
-                created_at: newTx.created_at
+                description: newTx.description
             });
-
-            if (txError) {
-                console.error('Erro ao salvar transação de aporte:', txError);
-                showToast('Erro ao registrar transação financeiro: ' + txError.message, 'error');
-            } else {
-                showToast('Aporte realizado com sucesso!', 'success');
-                // LoadData pode ser lento, mas o Otimista já resolveu o display.
-                // loadData(session.user.id);
-            }
-        } else {
-            showToast('Aporte registrado (Local).', 'success');
         }
     };
-
-    // NOVO: Função para Sincronizar (Migrar) Investimentos antigos para o modelo de Transações
-    const handleSyncInvestments = async () => {
-        console.log('Iniciando sincronização...');
-        let newTxs: Transaction[] = [];
-
-        data.investments.forEach(inv => {
-            const hasHistory = inv.history && inv.history.length > 0;
-            let historyToProcess = hasHistory ? inv.history : [];
-
-            // Caso especial: Investimento antigo SEM histórico, mas COM total investido > 0
-            if (!hasHistory && (inv.totalInvested || 0) > 0) {
-                historyToProcess.push({
-                    id: `fallback-${inv.id}`,
-                    date: inv.purchaseDate?.split('T')[0] || new Date().toISOString().split('T')[0],
-                    amount: Number(inv.totalInvested),
-                    description: 'Saldo Inicial (Sincronizado)',
-                    userId: session.user.id
-                });
-                console.log(`Fallback de histórico criado para: ${inv.ticker} - R$ ${inv.totalInvested}`);
-            }
-
-            (historyToProcess || []).forEach(h => {
-                if (h.amount > 0) {
-                    // Verifica duplicidade (Simplificado)
-                    const exists = data.transactions.some(t =>
-                        t.amount === Number(h.amount) &&
-                        t.date === h.date &&
-                        (t.title.includes(inv.ticker) || t.category === 'Investimentos')
-                    );
-
-                    if (!exists) {
-                        console.log(`Criando transação para: ${inv.ticker} | Data: ${h.date} | Valor: ${h.amount}`);
-                        newTxs.push({
-                            id: crypto.randomUUID(),
-                            user_id: session.user.id,
-                            title: `Auto-Sync: ${inv.ticker}`,
-                            amount: Number(h.amount),
-                            type: 'expense',
-                            category: 'Investimentos',
-                            date: h.date,
-                            paymentMethod: 'pix',
-                            description: `Sincronização de saldo para ${inv.ticker}`
-                        });
-                    } else {
-                        console.log(`Ignorado (já existe): ${inv.ticker} | R$ ${h.amount}`);
-                    }
-                }
-            });
-        });
-
-        console.log(`Encontradas ${newTxs.length} novas transações para sincronizar.`);
-
-        if (newTxs.length > 0) {
-            if (isConfigured) {
-                const { error } = await supabase.from('transactions').insert(newTxs.map(t => ({
-                    user_id: t.user_id,
-                    title: t.title,
-                    amount: t.amount,
-                    type: t.type,
-                    category: t.category,
-                    date: t.date,
-                    payment_method: t.paymentMethod,
-                    description: t.description
-                })));
-                if (error) {
-                    console.error('Erro no sync:', error);
-                    showToast('Erro ao sincronizar: ' + error.message, 'error');
-                    return;
-                }
-            }
-            const allNew = [...data.transactions, ...newTxs];
-            setData(prev => ({ ...prev, transactions: allNew }));
-            showToast(`${newTxs.length} transações geradas e sincronizadas!`, 'success');
-        } else {
-            showToast('O saldo já está sincronizado!', 'success');
-        }
-    };
-
-    // NOVO: Manipulador de Resgate (Gera transação de receita)
-
 
     const handleSaveTransaction = async (tx: Partial<Transaction>) => {
-        const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description, created_at: tx.created_at };
+        const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description };
+
         if (isConfigured) {
             if (editingTransaction) {
                 await supabase.from('transactions').update(txData).eq('id', editingTransaction.id);
@@ -818,8 +709,6 @@ function MainApp() {
     };
 
     const deleteTransaction = async (id: string) => {
-        const txToDelete = data.transactions.find(t => t.id === id);
-
         setConfirmModal({
             isOpen: true,
             title: 'Excluir Transação',
@@ -827,71 +716,6 @@ function MainApp() {
             type: 'danger',
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
-                // OPTIMISTIC UPDATE: Remove immediately
-                setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
-
-                // --- SYNC LOGIC: Check if it's an investment transaction ---
-                if (txToDelete && (txToDelete.category === 'Investimentos' || txToDelete.category === 'Resgate de Investimento' || txToDelete.title.includes('Aporte') || txToDelete.title.includes('Resgate'))) {
-                    // Try to identify the asset by determining if any ticker is in the title
-                    const relatedInv = data.investments.find(inv => txToDelete.title.toUpperCase().includes(inv.ticker.toUpperCase()));
-
-                    if (relatedInv) {
-                        const amount = Number(txToDelete.amount);
-
-                        let newTotal = relatedInv.totalInvested;
-                        let newCurrent = relatedInv.currentValue;
-
-                        // Logic: If it was an EXPENSE (Aporte), we REVERSE by SUBTRACTING.
-                        //        If it was an INCOME (Resgate), we REVERSE by ADDING.
-                        // Note: 'Aporte' is typically Expense. 'Resgate' is typically Income (or "withdrawal" history).
-
-                        try {
-                            const isResgate = txToDelete.title.includes('Resgate') || (txToDelete.type === 'income' && (txToDelete.category === 'Investimentos' || txToDelete.category.includes('Resgate'))) || txToDelete.category === 'Resgate de Investimento';
-
-                            // Recalculate History matching
-                            let removedFound = false;
-                            const newHistory = (relatedInv.history || []).filter(h => {
-                                if (removedFound) return true;
-
-                                const matchDate = h.date === txToDelete.date;
-                                let matchAmount = false;
-
-                                if (isResgate) {
-                                    // Redemption: History is negative. Transaction is positive.
-                                    // Strict Check: Amount must be negative in history
-                                    matchAmount = h.amount < 0 && (Math.abs(h.amount) === amount || Math.abs(h.amount + amount) < 0.1);
-                                } else {
-                                    // Contribution/Expense: History is positive.
-                                    matchAmount = h.amount > 0 && Math.abs(h.amount - amount) < 0.1;
-                                }
-
-                                if (matchDate && matchAmount) {
-                                    removedFound = true;
-                                    return false;
-                                }
-                                return true;
-                            });
-
-                            if (!removedFound) console.warn('Item de histórico não encontrado para reversão no Sync.');
-
-                            if (isResgate) {
-                                // Reversing Redemption -> Add back to Current Value
-                                newCurrent = Number(relatedInv.currentValue) + amount;
-                            } else {
-                                // Reversing Contribution -> Subtract
-                                newTotal = Math.max(0, relatedInv.totalInvested - amount);
-                                newCurrent = Math.max(0, relatedInv.currentValue - amount);
-                            }
-
-                            const updatedInv = { ...relatedInv, totalInvested: newTotal, currentValue: newCurrent, history: newHistory };
-                            await handleEditInvestment(updatedInv);
-                            showToast(`Saldo de ${relatedInv.ticker} revertido/sincronizado.`, 'success');
-
-                        } catch (err) { console.error('Erro no sync de reversão', err); }
-
-                    }
-                }
-
                 if (isConfigured) {
                     const { error } = await supabase.from('transactions').delete().eq('id', id);
                     if (error) showToast('Erro ao excluir: ' + error.message, 'error');
@@ -904,80 +728,6 @@ function MainApp() {
                 }
             }
         });
-    };
-    const handleInvestmentResgate = async (id: string, amount: number) => {
-        const inv = data.investments.find(i => i.id === id);
-        if (!inv) return;
-
-
-        const finalAmount = Number(amount);
-        const now = new Date();
-        const nowFull = now.toISOString();
-        const localDate = now.toLocaleDateString('sv-SE'); // YYYY-MM-DD (Safe date)
-
-        // 1. Criar entrada no histórico
-        const historyEntry: HistoryEntry = {
-            id: crypto.randomUUID(),
-            date: localDate,
-            amount: -finalAmount, // Valor negativo para representar saída
-            description: 'Resgate Parcial',
-            type: 'withdrawal',
-            userId: session.user.id
-        };
-
-        // 2. Atualizar Investimento (Reduzir CurrentValue e adicionar histórico)
-        const updatedInv = {
-            ...inv,
-            currentValue: Math.max(0, Number(inv.currentValue) - finalAmount),
-            history: [...(inv.history || []), historyEntry]
-        };
-
-        // Atualiza Investimento (Banco + Estado)
-        await handleEditInvestment(updatedInv);
-
-        // 3. Gerar Transação de Receita (Lógica da Main: Update Otimista + Insert Direto)
-        const newTx: Transaction = {
-            id: crypto.randomUUID(),
-            user_id: session.user.id,
-            title: `Resgate: ${inv.ticker}`,
-            amount: finalAmount,
-            type: 'income',
-            category: 'Resgate de Investimento',
-            date: localDate,
-            paymentMethod: 'pix',
-            description: `Resgate de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
-            created_at: nowFull
-        };
-
-        // Update Otimista Local
-        setData(prev => ({
-            ...prev,
-            transactions: [newTx, ...prev.transactions]
-        }));
-
-        showToast(`Resgate de R$ ${finalAmount.toFixed(2)} realizado!`, "success");
-
-        // Persistência Direta com Mapeamento Correto
-        if (isConfigured) {
-            const { error } = await supabase.from('transactions').insert({
-                user_id: session.user.id,
-                title: newTx.title,
-                amount: newTx.amount,
-                type: newTx.type,
-                category: newTx.category,
-                date: newTx.date,
-                payment_method: newTx.paymentMethod, // Mapeamento correto
-                description: newTx.description
-            });
-
-            if (error) {
-                console.error('Erro ao salvar transação de resgate:', error);
-                showToast('Erro ao salvar transação: ' + error.message, 'error');
-            } else {
-                // Opcional: Recarregar para confirmar
-                // loadData(session.user.id);
-            }
-        }
     };
 
     // Helper: Converte histórico de investimentos em transações de despesa para manter o saldo correto após exclusão
@@ -1008,7 +758,7 @@ function MainApp() {
         const initialDifference = Number(inv.totalInvested || 0) - totalHistory;
 
         if (initialDifference > 0) {
-            const dateStr = inv.purchaseDate ? inv.purchaseDate.split('T')[0] : new Date().toLocaleDateString('sv-SE');
+            const dateStr = inv.purchaseDate ? inv.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0];
             newTransactions.push({
                 id: crypto.randomUUID(),
                 user_id: session.user.id,
@@ -1024,32 +774,21 @@ function MainApp() {
 
         // Persistir Transações
         if (newTransactions.length > 0) {
-            // Check for duplicates before adding (Robust Check)
-            const finalTransactions = newTransactions.filter(newT => {
-                return !data.transactions.some(existingT =>
-                    existingT.amount === newT.amount &&
-                    existingT.date === newT.date &&
-                    (existingT.title.includes(inv.ticker) || existingT.category === 'Investimentos')
-                );
-            });
-
-            if (finalTransactions.length > 0) {
-                if (isConfigured) {
-                    const { error } = await supabase.from('transactions').insert(finalTransactions.map(t => ({
-                        user_id: t.user_id,
-                        title: t.title,
-                        amount: t.amount,
-                        type: t.type,
-                        category: t.category,
-                        date: t.date,
-                        payment_method: t.paymentMethod,
-                        description: t.description
-                    })));
-                    if (error) console.error('Erro ao solidificar histórico:', error);
-                }
-                // Atualiza estado local
-                setData(prev => ({ ...prev, transactions: [...prev.transactions, ...finalTransactions] }));
+            if (isConfigured) {
+                const { error } = await supabase.from('transactions').insert(newTransactions.map(t => ({
+                    user_id: t.user_id,
+                    title: t.title,
+                    amount: t.amount,
+                    type: t.type,
+                    category: t.category,
+                    date: t.date,
+                    payment_method: t.paymentMethod,
+                    description: t.description
+                })));
+                if (error) console.error('Erro ao solidificar histórico:', error);
             }
+            // Atualiza estado local
+            setData(prev => ({ ...prev, transactions: [...prev.transactions, ...newTransactions] }));
         }
     };
 
@@ -1201,15 +940,7 @@ function MainApp() {
 
     if (!session) return <LoginScreen />;
 
-    const paginatedTransactions = filteredTransactions.sort((a, b) => {
-        const dateA = new Date(a.date).getTime();
-        const dateB = new Date(b.date).getTime();
-        if (dateA !== dateB) return dateB - dateA;
-        // Tie-breaker: created_at (Newest first)
-        const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
-        const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
-        return createdB - createdA;
-    }).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
+    const paginatedTransactions = filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
     const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
 
     // Mapeamento dos itens de navegação para reuso (Sidebar e Bottom Nav)
@@ -1306,7 +1037,7 @@ function MainApp() {
                                         </div>
                                     </div>
                                     <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
-                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'Enriquecer é uma questão de escolha, não de sorte.'}"</p>
+                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
                                     </div>
                                 </div>
 
@@ -1595,11 +1326,11 @@ function MainApp() {
                         readOnly={isReadOnly}
                     />}
 
-                    {activeModule === 'settings' && <SettingsView config={data.categoryConfig} onUpdate={handleUpdateCategories} readOnly={isReadOnly} onLogout={handleLogout} onSync={handleSyncInvestments} />}
+                    {activeModule === 'settings' && <SettingsView config={data.categoryConfig} onUpdate={handleUpdateCategories} readOnly={isReadOnly} onLogout={handleLogout} />}
                 </div>
             </main>
 
-            {/* BOTTOM NAVIGATION - VISÓVEL APENAS NO MOBILE */}
+            {/* BOTTOM NAVIGATION - VISÍVEL APENAS NO MOBILE */}
             <div className="md:hidden fixed bottom-0 left-0 right-0 bg-white border-t border-slate-200 z-30 flex justify-around p-2 pb-safe shadow-[0_-4px_6px_-1px_rgba(0,0,0,0.05)]">
                 {navItems.map(item => {
                     const isActive = activeModule === item.id;
@@ -1623,28 +1354,60 @@ function MainApp() {
                     </div>
                 </div>
             )}
-            <SmartDeleteModal
-                isOpen={smartDeleteModal.isOpen}
-                inv={smartDeleteModal.inv}
-                onClose={() => setSmartDeleteModal({ isOpen: false, inv: null })}
-                onProcess={processSmartDelete}
-            />
+            {/* Smart Delete Modal */}
+            {smartDeleteModal.isOpen && smartDeleteModal.inv && (
+                <div className="fixed inset-0 bg-black/60 z-[200] flex items-center justify-center backdrop-blur-sm p-4" onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}>
+                    <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md p-6 animate-fade-in-up" onClick={e => e.stopPropagation()}>
+                        <div className="flex items-center gap-3 mb-4 text-amber-600">
+                            <div className="bg-amber-100 p-2 rounded-full"><AlertTriangle size={24} /></div>
+                            <h3 className="text-xl font-bold text-slate-800">Saldo Remanescente</h3>
+                        </div>
 
+                        <p className="text-slate-600 mb-6 leading-relaxed">
+                            O ativo <strong className="text-slate-800">{smartDeleteModal.inv.ticker}</strong> ainda possui <strong className="text-emerald-600">R$ {smartDeleteModal.inv.currentValue.toFixed(2)}</strong>.
+                            <br /><br />
+                            O que deseja fazer com este saldo?
+                        </p>
+
+                        <div className="flex flex-col gap-3">
+                            <button
+                                onClick={() => processSmartDelete('liquidate')}
+                                className="w-full py-4 px-4 bg-emerald-500 hover:bg-emerald-600 text-white font-bold rounded-xl shadow-lg shadow-emerald-200 transition flex items-center justify-center gap-2"
+                            >
+                                <TrendingUp size={20} />
+                                Resgatar Tudo e Excluir
+                                <span className="text-xs font-normal opacity-80">(Liquidar)</span>
+                            </button>
+
+                            <button
+                                onClick={() => processSmartDelete('delete')}
+                                className="w-full py-3 px-4 bg-white border-2 border-slate-200 hover:border-rose-200 hover:bg-rose-50 text-slate-600 hover:text-rose-600 font-bold rounded-xl transition flex items-center justify-center gap-2"
+                            >
+                                <Trash2 size={18} />
+                                Apenas Excluir
+                                <span className="text-xs font-normal opacity-80">(Correção)</span>
+                            </button>
+
+                            <button
+                                onClick={() => setSmartDeleteModal({ isOpen: false, inv: null })}
+                                className="w-full py-2 text-slate-400 font-bold hover:text-slate-600 transition text-sm mt-2"
+                            >
+                                Cancelar
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            )}
             <ConfirmDialog {...confirmModal} onCancel={() => setConfirmModal(prev => ({ ...prev, isOpen: false }))} />
-        </div >
+        </div>
     );
 }
 
 
 // --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
 function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
-    const today = new Date().toLocaleDateString('sv-SE');
+    const today = new Date().toISOString().split('T')[0];
     const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
-
-    // Auto-update created_at if new
-    if (!editingTransaction && !form.created_at) {
-        form.created_at = new Date().toISOString();
-    }
     const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
 
     const [errors, setErrors] = useState<{ date?: string, title?: string }>({});
@@ -1707,39 +1470,3 @@ const KPICard = ({ title, value, icon: Icon, color }: any) => {
     );
 };
 
-
-// --- SMART DELETE MODAL ---
-function SmartDeleteModal({ isOpen, inv, onClose, onProcess }: { isOpen: boolean, inv: InvestmentAsset | null, onClose: () => void, onProcess: (action: 'liquidate' | 'delete') => void }) {
-    if (!isOpen || !inv) return null;
-
-    return (
-        <div className="fixed inset-0 z-[100] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full animate-scale-in">
-                <h3 className="font-bold text-lg text-slate-800 mb-2">Excluir "{inv.ticker}"?</h3>
-                <p className="text-sm text-slate-500 mb-6">Este investimento ainda tem <strong className="text-slate-800">R$ {inv.currentValue.toLocaleString()}</strong>. O que deseja fazer?</p>
-
-                <div className="space-y-3">
-                    <button onClick={() => onProcess('liquidate')} className="w-full flex items-center justify-between p-3 rounded-xl border border-emerald-100 bg-emerald-50 hover:bg-emerald-100 transition group">
-                        <div className="text-left">
-                            <span className="block font-bold text-emerald-700 text-sm">Resgatar e Excluir</span>
-                            <span className="block text-[10px] text-emerald-600/80">Gera receita de resgate e remove o card.</span>
-                        </div>
-                        <Check size={18} className="text-emerald-500" />
-                    </button>
-
-                    <button onClick={() => onProcess('delete')} className="w-full flex items-center justify-between p-3 rounded-xl border border-rose-100 bg-rose-50 hover:bg-rose-100 transition group">
-                        <div className="text-left">
-                            <span className="block font-bold text-rose-700 text-sm">Excluir Card (Manter Saldo)</span>
-                            <span className="block text-[10px] text-rose-600/80">Apenas remove da visão. Histórico fica.</span>
-                        </div>
-                        <Trash2 size={18} className="text-rose-500" />
-                    </button>
-                </div>
-
-                <div className="mt-6 border-t border-slate-100 pt-4 flex justify-end">
-                    <button onClick={onClose} className="px-4 py-2 text-sm text-slate-500 font-bold hover:bg-slate-50 rounded-lg">Cancelar</button>
-                </div>
-            </div>
-        </div>
-    );
-}

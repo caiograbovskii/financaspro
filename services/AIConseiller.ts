@@ -1,4 +1,4 @@
-
+﻿
 import { Transaction, Goal, InvestmentAsset, CategoryConfig } from '../types';
 import { TrendingUp, AlertTriangle, Coffee, Target, Zap, Award, Brain } from 'lucide-react';
 
@@ -21,7 +21,7 @@ const DAILY_QUOTES = [
     { text: "Ativos põem dinheiro no seu bolso. Passivos tiram dinheiro do seu bolso.", author: "Robert Kiyosaki", source: "Pai Rico, Pai Pobre" },
     { text: "Ou você controla o seu dinheiro ou ele controlará você.", author: "T. Harv Eker", source: "Segredos da Mente Milionária" },
     { text: "Uma parte de tudo que você ganha pertence a você.", author: "George S. Clason", source: "O Homem Mais Rico da Babilônia" },
-    { text: "Riqueza é o que você não vê.", author: "Morgan Housel", source: "A Psicologia Financeira" },
+    { text: "Riqueza é o que você nã vê.", author: "Morgan Housel", source: "A Psicologia Financeira" },
     { text: "Enriquecer é uma questão de escolha, não de sorte.", author: "Gustavo Cerbasi", source: "Casais Inteligentes Enriquecem Juntos" },
     { text: "Pobreza não é falta de dinheiro, é falta de sabedoria.", author: "Tiago Brunet", source: "Dinheiro é Emocional" }
 ];
@@ -175,7 +175,7 @@ export const AIConseiller = {
             const deadline = new Date(g.deadline);
             const remainingMonths = (deadline.getTime() - today.getTime()) / (1000 * 60 * 60 * 24 * 30);
             const remainingAmount = g.targetAmount - g.currentAmount;
-            if (remainingMonths <= 0) return remainingAmount > 0; // Já venceu e não atingiu
+            if (remainingMonths <= 0) return remainingAmount > 0; // Já venceu e nã atingiu
             // Se precisar economizar mais de 30% da renda mensal para atingir a meta, está em risco
             return (remainingMonths > 0 && (remainingAmount / remainingMonths) > (income * 0.3));
         });
@@ -191,22 +191,22 @@ export const AIConseiller = {
             });
         }
 
-        // 5. Citação do Dia (Global)
+        // 5. Citaçã do Dia (Global)
         const daySeed = (today.getFullYear() * 1000) + (today.getMonth() * 31) + today.getDate();
         const quoteIndex = daySeed % DAILY_QUOTES.length;
         const dailyQuote = DAILY_QUOTES[quoteIndex];
 
-        // 6. Oportunidade de Investimento Inteligente (Sem restrição de dia > 20, agora > dia 5)
+        // 6. Oportunidade de Investimento Inteligente (Sem restriçã de dia > 20, agora > dia 5)
         const balance = income - expense - (totalInvested - (investments.reduce((acc, inv) => acc + (inv.history?.find(h => {
             const [y, m] = h.date.split('-').map(Number);
             return m - 1 === month && y === year && h.amount > 0;
         })?.amount || 0), 0))); // Tenta aproximar o caixa real subtraindo investimentos feitos??
-        // Simplificação: Balance = Receita - Despesa - (Investimentos que aumentaram este mês?)
+        // Simplificaçã: Balance = Receita - Despesa - (Investimentos que aumentaram este mês?)
 
         // Melhor abordagem: O AIConseiller recebe 'transactions'. Não temos o 'cash flow' exato dos investimentos aqui sem a lógica complexa do App.
-        // Mas podemos assumir que se o usuário já investiu, não queremos contar isso como excedente.
-        // Vou usar: surplus = income - expense - (investimentos totais * 0.1) se não tiver histórico.
-        // NÂO. O usuário disse: "Eu nao tenho isso".
+        // Mas podemos assumir que se o usuário já investiu, nã queremos contar isso como excedente.
+        // Vou usar: surplus = income - expense - (investimentos totais * 0.1) se nã tiver histórico.
+        // NÃO. O usuário disse: "Eu nao tenho isso".
         // O cálculo do App usa: balance = income - expense - investmentOutflow.
         // Vou tentar replicar uma lógica simples: income - expense - (sum of positive investment history in current month).
 
@@ -231,7 +231,7 @@ export const AIConseiller = {
             });
         }
 
-        // 7. Insight Diário de Evolução (Novo)
+        // 7. Insight Diário de Evoluçã (Novo)
         const dailyTips = [
             "Pague a si mesmo primeiro: Separe seu investimento assim que receber.",
             "Evite compras por impulso: Espere 24h antes de comprar algo não essencial.",
@@ -240,7 +240,7 @@ export const AIConseiller = {
             "Crie um fundo de reserva para imprevistos e durma tranquilo."
         ];
         // Usa o seed do dia para escolher uma dica
-        if (insights.length < 3) { // Só mostra se não houver muitos alertas críticos
+        if (insights.length < 3) { // Só mostra se nã houver muitos alertas críticos
             insights.push({
                 id: 'daily-tip',
                 type: 'info',
