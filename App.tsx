@@ -601,7 +601,7 @@ function MainApp() {
                 return;
             }
 
-            // Salva TransaçÓo de SaÓ­da no Banco
+            // Salva Transação de Saída no Banco
             if (initialAmount > 0) {
                 await supabase.from('transactions').insert(newTx);
             }
@@ -918,12 +918,12 @@ function MainApp() {
 
         // Persistir Transações
         if (newTransactions.length > 0) {
-            // Check for duplicates before adding
+            // Check for duplicates before adding (Robust Check)
             const finalTransactions = newTransactions.filter(newT => {
                 return !data.transactions.some(existingT =>
                     existingT.amount === newT.amount &&
                     existingT.date === newT.date &&
-                    existingT.title === newT.title
+                    (existingT.title.includes(inv.ticker) || existingT.category === 'Investimentos')
                 );
             });
 
@@ -957,7 +957,7 @@ function MainApp() {
             setConfirmModal({
                 isOpen: true,
                 title: 'Excluir Investimento',
-                message: 'O investimento serÓ excluído, mas seu histórico de aportes serÓ convertido em "Despesas" para nÓo alterar seu saldo contÓbil.',
+                message: 'O investimento será excluído, mas seu histórico de aportes será convertido em "Despesas" para não alterar seu saldo contábil.',
                 type: 'danger',
                 onConfirm: async () => {
                     setConfirmModal(prev => ({ ...prev, isOpen: false }));
@@ -1148,7 +1148,7 @@ function MainApp() {
                     <div className="flex gap-2 md:gap-4">
                         {activeModule === 'dashboard' && !isReadOnly && (
                             <button onClick={openNewTransaction} className="bg-slate-900 text-white px-3 md:px-5 py-2 rounded-xl flex items-center gap-2 shadow-lg text-sm font-medium">
-                                <Plus size={18} /> <span className="hidden sm:inline">Nova TransaçÓo</span>
+                                <Plus size={18} /> <span className="hidden sm:inline">Nova Transação</span>
                             </button>
                         )}
                         {activeModule !== 'settings' && (
@@ -1161,7 +1161,7 @@ function MainApp() {
                     </div>
                 </header>
 
-                {/* Padding inferior aumentado no mobile (pb-24) para o conteÓºdo nÓo ficar atrÓ¡s da navbar */}
+                {/* Padding inferior aumentado no mobile (pb-24) para o conteúdo não ficar atrás da navbar */}
                 <div className="flex-1 overflow-y-auto p-4 md:p-8 custom-scroll relative pb-24 md:pb-8">
                     {activeModule === 'dashboard' && (
                         <div className="space-y-6 md:space-y-8 animate-fade-in">
@@ -1174,7 +1174,7 @@ function MainApp() {
                                         Consultor IA
                                     </h2>
                                     <button onClick={() => { setDismissedInsights([]); setRefreshSeed(s => s + 1); }} className="text-sm flex items-center gap-1 text-slate-400 hover:text-indigo-600 transition">
-                                        <RefreshCcw size={14} /> Atualizar AnÓ¡lise
+                                        <RefreshCcw size={14} /> Atualizar Análise
                                     </button>
                                 </div>
 
@@ -1192,7 +1192,7 @@ function MainApp() {
                                         </div>
                                     </div>
                                     <div className="flex-1 border-l border-white/10 pl-0 md:pl-6 relative z-10">
-                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro Ó© uma maratona, nÓo um sprint.'}"</p>
+                                        <p className="text-slate-300 italic text-sm md:text-base">"{insights.insights.find(i => i.id === 'daily-wisdom')?.message || 'O sucesso financeiro é uma maratona, não um sprint.'}"</p>
                                     </div>
                                 </div>
 
@@ -1214,7 +1214,7 @@ function MainApp() {
                                     </div>
                                 ) : (
                                     <div className="text-center py-6 bg-slate-50 rounded-xl border border-dashed border-slate-200 mb-4">
-                                        <p className="text-slate-500 text-sm">Nenhum novo insight no momento. VocÓª estÓ¡ no controle!</p>
+                                        <p className="text-slate-500 text-sm">Nenhum novo insight no momento. Você está no controle!</p>
                                     </div>
                                 )}
 
@@ -1242,11 +1242,11 @@ function MainApp() {
                                         </div>
                                         <div>
                                             <h3 className="font-bold text-slate-800">Mural da Mentora</h3>
-                                            <p className="text-xs text-slate-500">Recados oficiais de FlÓ¡via</p>
+                                            <p className="text-xs text-slate-500">Recados oficiais de Flávia</p>
                                         </div>
                                     </div>
 
-                                    {/* Se for a FlÓ¡via, mostra input */}
+                                    {/* Se for a Flávia, mostra input */}
                                     {session?.user?.email === 'flavia@mentora.com' && (
                                         <div className="mb-6 flex gap-2 relative z-10">
                                             <input
