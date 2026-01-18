@@ -606,7 +606,23 @@ function MainApp() {
 
             // Salva Transação de Saída no Banco
             if (initialAmount > 0) {
-                await supabase.from('transactions').insert(newTx);
+                const { error: txError } = await supabase.from('transactions').insert({
+                    id: newTx.id,
+                    user_id: newTx.user_id,
+                    title: newTx.title,
+                    amount: newTx.amount,
+                    type: newTx.type,
+                    category: newTx.category,
+                    date: newTx.date,
+                    payment_method: newTx.paymentMethod,
+                    description: newTx.description,
+                    created_at: newTx.created_at
+                });
+
+                if (txError) {
+                    console.error('Erro ao salvar transação de investimento inicial:', txError);
+                    showToast('Erro ao criar transação: ' + txError.message, 'error');
+                }
             }
 
             if (inserted) {
@@ -960,6 +976,7 @@ function MainApp() {
         // Persistência Direta com Mapeamento Correto
         if (isConfigured) {
             const { error } = await supabase.from('transactions').insert({
+                id: newTx.id,
                 user_id: session.user.id,
                 title: newTx.title,
                 amount: newTx.amount,
@@ -967,7 +984,8 @@ function MainApp() {
                 category: newTx.category,
                 date: newTx.date,
                 payment_method: newTx.paymentMethod, // Mapeamento correto
-                description: newTx.description
+                description: newTx.description,
+                created_at: newTx.created_at
             });
 
             if (error) {
