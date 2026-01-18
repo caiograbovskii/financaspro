@@ -362,14 +362,16 @@ function MainApp() {
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
         const expense = filteredTransactions
-            .filter(t => t.type === 'expense')
+            .filter(t => t.type === 'expense' && t.category !== 'Investimentos')
             .reduce((sum, t) => sum + Number(t.amount || 0), 0);
 
-        // NOVA LÓGICA (BANCÓRIA):
-        // Balance = Receita - Despesa.
-        // Investimentos geram Despesas no momento do aporte.
-        // Resgates geram Receitas no momento do resgate.
-        // Portanto, o Saldo Final é simplesmente a soma das transações.
+        const investmentFlow = filteredTransactions
+            .filter(t => t.type === 'expense' && t.category === 'Investimentos')
+            .reduce((sum, t) => sum + Number(t.amount || 0), 0);
+
+        // NOVA LÓGICA (BANCÁRIA):
+        // Balance = Receita - Despesa - Aportes.
+        // O KPI 'Despesas' mostra apenas gastos operacionais.
 
         const totalInvestedCurrent = data.investments.reduce((sum, inv) => sum + Number(inv.currentValue || 0), 0);
         const totalUnlinkedGoals = data.goals
@@ -379,7 +381,7 @@ function MainApp() {
         return {
             income,
             expense,
-            balance: income - expense,
+            balance: income - expense - investmentFlow,
             invested: totalInvestedCurrent + totalUnlinkedGoals
         };
     }, [filteredTransactions, data.investments, data.goals]);
@@ -512,7 +514,7 @@ function MainApp() {
             if (inserted) {
                 setData(prev => ({ ...prev, goals: prev.goals.map(g => g.name === safeGoal.name && !g.id ? { ...g, id: inserted.id } : g) }));
                 setShowCelebration(true);
-                showToast('Meta criada com sucesso! ðŸš€', 'success');
+                showToast('Meta criada com sucesso! 🚀', 'success');
             } else { loadData(session.user.id); }
         } else {
             // Fallback local se nÓo estiver configurado
@@ -569,7 +571,7 @@ function MainApp() {
             user_id: session.user.id
         };
 
-        // CRIAR TRANSAÓ‡ÓƒO DE DESPESA (FLUXO DE CAIXA)
+        // CRIAR TRANSAÇÃO DE DESPESA (FLUXO DE CAIXA)
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -579,7 +581,7 @@ function MainApp() {
             category: 'Investimentos',
             date: now.split('T')[0],
             paymentMethod: 'pix',
-            description: `Aporte inicial em ${safeInv.ticker}`
+            description: `Aporte inicial em ${safeInv.ticker}` // UTF-8 Fixed
         };
 
         if (isConfigured) {
@@ -651,10 +653,10 @@ function MainApp() {
             history: updatedHistory
         };
 
-        // O handleEditInvestment jÓ¡ sabe lidar com isso
+        // O handleEditInvestment já sabe lidar com isso
         await handleEditInvestment(updatedInv);
 
-        // 3. Gerar TransaçÓo de Despesa
+        // 3. Gerar Transação de Despesa
         const newTx: Transaction = {
             id: crypto.randomUUID(),
             user_id: session.user.id,
@@ -670,16 +672,16 @@ function MainApp() {
         showToast('Aporte registrado com sucesso!', 'success');
     };
 
-    // NOVO: FunçÓo para Sincronizar (Migrar) Investimentos antigos para o modelo de TransaçÓµes
+    // NOVO: Função para Sincronizar (Migrar) Investimentos antigos para o modelo de Transações
     const handleSyncInvestments = async () => {
-        console.log('Iniciando sincronizaçÓo...');
+        console.log('Iniciando sincronização...');
         let newTxs: Transaction[] = [];
 
         data.investments.forEach(inv => {
             const hasHistory = inv.history && inv.history.length > 0;
             let historyToProcess = hasHistory ? inv.history : [];
 
-            // Caso especial: Investimento antigo SEM histÓ³rico, mas COM total investido > 0
+            // Caso especial: Investimento antigo SEM histórico, mas COM total investido > 0
             if (!hasHistory && (inv.totalInvested || 0) > 0) {
                 historyToProcess.push({
                     id: `fallback-${inv.id}`,
@@ -688,7 +690,7 @@ function MainApp() {
                     description: 'Saldo Inicial (Sincronizado)',
                     userId: session.user.id
                 });
-                console.log(`Fallback de histÓ³rico criado para: ${inv.ticker} - R$ ${inv.totalInvested}`);
+                console.log(`Fallback de histórico criado para: ${inv.ticker} - R$ ${inv.totalInvested}`);
             }
 
             (historyToProcess || []).forEach(h => {
@@ -697,11 +699,11 @@ function MainApp() {
                     const exists = data.transactions.some(t =>
                         t.amount === Number(h.amount) &&
                         t.date === h.date &&
-                        t.title.includes(inv.ticker)
+                        (t.title.includes(inv.ticker) || t.category === 'Investimentos')
                     );
 
                     if (!exists) {
-                        console.log(`Criando transaçÓo para: ${inv.ticker} | Data: ${h.date} | Valor: ${h.amount}`);
+                        console.log(`Criando transação para: ${inv.ticker} | Data: ${h.date} | Valor: ${h.amount}`);
                         newTxs.push({
                             id: crypto.randomUUID(),
                             user_id: session.user.id,
@@ -711,16 +713,16 @@ function MainApp() {
                             category: 'Investimentos',
                             date: h.date,
                             paymentMethod: 'pix',
-                            description: `SincronizaçÓo de saldo para ${inv.ticker}`
+                            description: `Sincronização de saldo para ${inv.ticker}`
                         });
                     } else {
-                        console.log(`Ignorado (jÓ¡ existe): ${inv.ticker} | R$ ${h.amount}`);
+                        console.log(`Ignorado (já existe): ${inv.ticker} | R$ ${h.amount}`);
                     }
                 }
             });
         });
 
-        console.log(`Encontradas ${newTxs.length} novas transaçÓµes para sincronizar.`);
+        console.log(`Encontradas ${newTxs.length} novas transações para sincronizar.`);
 
         if (newTxs.length > 0) {
             if (isConfigured) {
@@ -742,9 +744,9 @@ function MainApp() {
             }
             const allNew = [...data.transactions, ...newTxs];
             setData(prev => ({ ...prev, transactions: allNew }));
-            showToast(`${newTxs.length} transaçÓµes geradas e sincronizadas!`, 'success');
+            showToast(`${newTxs.length} transações geradas e sincronizadas!`, 'success');
         } else {
-            showToast('O saldo jÓ¡ estÓ¡ sincronizado!', 'success');
+            showToast('O saldo já está sincronizado!', 'success');
         }
     };
 
@@ -1224,7 +1226,7 @@ function MainApp() {
                                         <div className="flex items-center gap-2">
                                             <div className="h-px bg-indigo-200 w-8"></div>
                                             <p className="text-xs font-bold text-indigo-600 uppercase tracking-wide">{insights.dailyQuote.author}</p>
-                                            <span className="text-xs text-slate-400">â€¢ {insights.dailyQuote.source}</span>
+                                            <span className="text-xs text-slate-400">• {insights.dailyQuote.source}</span>
                                         </div>
                                     </div>
                                 </div>
