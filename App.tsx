@@ -821,6 +821,8 @@ function MainApp() {
             type: 'danger',
             onConfirm: async () => {
                 setConfirmModal(prev => ({ ...prev, isOpen: false }));
+                // OPTIMISTIC UPDATE: Remove immediately
+                setData(prev => ({ ...prev, transactions: prev.transactions.filter(t => t.id !== id) }));
 
                 // --- SYNC LOGIC: Check if it's an investment transaction ---
                 if (txToDelete && (txToDelete.category === 'Investimentos' || txToDelete.title.includes('Aporte'))) {
@@ -837,42 +839,47 @@ function MainApp() {
                         //        If it was an INCOME (Resgate), we REVERSE by ADDING.
                         // Note: 'Aporte' is typically Expense. 'Resgate' is typically Income (or "withdrawal" history).
 
-                        const isResgate = txToDelete.title.includes('Resgate') || (txToDelete.type === 'income' && txToDelete.category === 'Investimentos');
+                        try {
+                            const isResgate = txToDelete.title.includes('Resgate') || (txToDelete.type === 'income' && (txToDelete.category === 'Investimentos' || txToDelete.category.includes('Resgate'))) || txToDelete.category === 'Resgate de Investimento';
 
-                        if (isResgate) {
-                            // Reversing a Redemption (Money came OUT, so put it back IN)
-                            newCurrent = Number(relatedInv.currentValue) + amount;
-                            // We don't change totalInvested on Resgate usually, unless business rule changes.
-                        } else {
-                            // Reversing an Apport (Money went IN, so take it OUT)
-                            newTotal = Math.max(0, relatedInv.totalInvested - amount);
-                            newCurrent = Math.max(0, relatedInv.currentValue - amount);
-                        }
+                            // Recalculate History matching
+                            let removedFound = false;
+                            const newHistory = (relatedInv.history || []).filter(h => {
+                                if (removedFound) return true;
 
-                        // Remove from history (Find ONE matching entry)
-                        let removedFound = false;
-                        const newHistory = (relatedInv.history || []).filter(h => {
-                            if (removedFound) return true;
+                                const matchDate = h.date === txToDelete.date;
+                                let matchAmount = false;
 
-                            const matchDate = h.date === txToDelete.date;
-                            let matchAmount = false;
+                                if (isResgate) {
+                                    // Redemption: History is negative. Transaction is positive.
+                                    matchAmount = Math.abs(h.amount) === amount || Math.abs(h.amount + amount) < 0.1;
+                                } else {
+                                    matchAmount = Math.abs(h.amount - amount) < 0.1;
+                                }
+
+                                if (matchDate && matchAmount) {
+                                    removedFound = true;
+                                    return false;
+                                }
+                                return true;
+                            });
+
+                            if (!removedFound) console.warn('Item de histórico não encontrado para reversão no Sync.');
 
                             if (isResgate) {
-                                // In handleInvestmentResgate we stored amount as NEGATIVE. Transaction is Positive.
-                                // So we look for abs(history) == transaction amount
-                                matchAmount = Math.abs(h.amount) === amount || Math.abs(h.amount + amount) < 0.1;
+                                // Reversing Redemption -> Add back to Current Value
+                                newCurrent = Number(relatedInv.currentValue) + amount;
                             } else {
-                                matchAmount = Math.abs(h.amount - amount) < 0.1;
+                                // Reversing Contribution -> Subtract
+                                newTotal = Math.max(0, relatedInv.totalInvested - amount);
+                                newCurrent = Math.max(0, relatedInv.currentValue - amount);
                             }
 
-                            if (matchDate && matchAmount) {
-                                removedFound = true;
-                                return false;
-                            }
-                            return true;
-                        });
+                            const updatedInv = { ...relatedInv, totalInvested: newTotal, currentValue: newCurrent, history: newHistory };
+                            await handleEditInvestment(updatedInv);
+                            showToast(`Saldo de ${relatedInv.ticker} revertido/sincronizado.`, 'success');
 
-                        const updatedInv = { ...relatedInv, totalInvested: newTotal, currentValue: newCurrent, history: newHistory };
+                        } catch (err) { console.error('Erro no sync de reversão', err); }
                         await handleEditInvestment(updatedInv);
                         showToast(`Saldo de ${relatedInv.ticker} revertido.`, 'success');
                     }
