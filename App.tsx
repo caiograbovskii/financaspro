@@ -57,8 +57,8 @@ const INITIAL_STATE: AppState = {
     investments: [],
     weeklyConfigs: Array(5).fill(null).map((_, i) => ({
         weekIndex: i,
-        startDate: new Date().toISOString().split('T')[0],
-        endDate: new Date().toISOString().split('T')[0]
+        startDate: new Date().toLocaleDateString('sv-SE'),
+        endDate: new Date().toLocaleDateString('sv-SE')
     })),
     categoryConfig: DEFAULT_CATEGORIES
 };
@@ -135,7 +135,7 @@ function MainApp() {
     const [txModalOpen, setTxModalOpen] = useState(false);
     const [editingTransaction, setEditingTransaction] = useState<Transaction | null>(null);
     const [currentPage, setCurrentPage] = useState(0);
-    const ITEMS_PER_PAGE = 5;
+    const ITEMS_PER_PAGE = 10;
     const [dismissedInsights, setDismissedInsights] = useState<string[]>([]);
     const [refreshSeed, setRefreshSeed] = useState(0);
     const [mentorNotes, setMentorNotes] = useState<any[]>([]);
@@ -147,7 +147,7 @@ function MainApp() {
 
     // Perfil de Leitura (Mentora)
     const isReadOnly = session?.user?.email === 'flavia@mentora.com';
-    console.log("FinancePro Loaded: Version 2.1 - Fix Resgate Applied");
+    console.log("FinancePro Loaded: Version 2.2 - UX & Timezone Fixes");
 
     // --- EFEITOS DE SESSÃO ---
 
@@ -548,14 +548,15 @@ function MainApp() {
 
     const handleAddInvestment = async (newInv: InvestmentAsset) => {
 
-        const now = new Date().toISOString();
+        const now = new Date().toISOString(); // Full ISO string for created_at/system usage
+        const localDate = new Date().toLocaleDateString('sv-SE'); // YYYY-MM-DD Local
         let safeHistory = newInv.history || [];
         const initialAmount = Number(newInv.totalInvested || 0);
 
         if (initialAmount > 0 && safeHistory.length === 0) {
             safeHistory = [{
                 id: crypto.randomUUID(),
-                date: now.split('T')[0],
+                date: localDate,
                 amount: initialAmount,
                 description: 'Aporte Inicial',
                 type: 'contribution',
@@ -580,9 +581,10 @@ function MainApp() {
             amount: initialAmount,
             type: 'expense',
             category: 'Investimentos',
-            date: now.split('T')[0],
+            date: localDate,
             paymentMethod: 'pix',
-            description: `Aporte inicial em ${safeInv.ticker}` // UTF-8 Fixed
+            description: `Aporte inicial em ${safeInv.ticker}`, // UTF-8 Fixed
+            created_at: now
         };
 
         if (isConfigured) {
@@ -631,7 +633,8 @@ function MainApp() {
         if (!inv) return;
 
         const finalAmount = Number(amount);
-        const nowStr = new Date().toISOString().split('T')[0];
+        const nowFull = new Date().toISOString();
+        const nowStr = new Date().toLocaleDateString('sv-SE');
 
         // 1. Criar novo item de histórico
         const newHistoryItem: HistoryEntry = {
@@ -669,7 +672,8 @@ function MainApp() {
             category: 'Investimentos',
             date: nowStr,
             paymentMethod: 'pix',
-            description: `Aporte adicional de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+            description: `Aporte adicional de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+            created_at: nowFull
         };
 
         // ATUALIZAÇÃO OTIMISTA IMEDIATA (Critical Fix for "First Deposit" delay)
@@ -688,7 +692,8 @@ function MainApp() {
                 category: newTx.category,
                 date: newTx.date,
                 payment_method: newTx.paymentMethod,
-                description: newTx.description
+                description: newTx.description,
+                created_at: newTx.created_at
             });
 
             if (txError) {
@@ -786,7 +791,7 @@ function MainApp() {
 
 
     const handleSaveTransaction = async (tx: Partial<Transaction>) => {
-        const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description };
+        const txData = { title: tx.title, amount: Number(tx.amount || 0), type: tx.type, category: tx.category, date: tx.date, payment_method: tx.paymentMethod, description: tx.description, created_at: tx.created_at };
         if (isConfigured) {
             if (editingTransaction) {
                 await supabase.from('transactions').update(txData).eq('id', editingTransaction.id);
@@ -907,7 +912,8 @@ function MainApp() {
 
         const finalAmount = Number(amount);
         const now = new Date();
-        const localDate = new Date().toISOString().split('T')[0]; // YYYY-MM-DD (Safe date)
+        const nowFull = now.toISOString();
+        const localDate = now.toLocaleDateString('sv-SE'); // YYYY-MM-DD (Safe date)
 
         // 1. Criar entrada no histórico
         const historyEntry: HistoryEntry = {
@@ -939,7 +945,8 @@ function MainApp() {
             category: 'Resgate de Investimento',
             date: localDate,
             paymentMethod: 'pix',
-            description: `Resgate de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`
+            description: `Resgate de ${finalAmount.toLocaleString('pt-BR', { style: 'currency', currency: 'BRL' })}`,
+            created_at: nowFull
         };
 
         // Update Otimista Local
@@ -1001,7 +1008,7 @@ function MainApp() {
         const initialDifference = Number(inv.totalInvested || 0) - totalHistory;
 
         if (initialDifference > 0) {
-            const dateStr = inv.purchaseDate ? inv.purchaseDate.split('T')[0] : new Date().toISOString().split('T')[0];
+            const dateStr = inv.purchaseDate ? inv.purchaseDate.split('T')[0] : new Date().toLocaleDateString('sv-SE');
             newTransactions.push({
                 id: crypto.randomUUID(),
                 user_id: session.user.id,
@@ -1194,7 +1201,15 @@ function MainApp() {
 
     if (!session) return <LoginScreen />;
 
-    const paginatedTransactions = filteredTransactions.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime()).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
+    const paginatedTransactions = filteredTransactions.sort((a, b) => {
+        const dateA = new Date(a.date).getTime();
+        const dateB = new Date(b.date).getTime();
+        if (dateA !== dateB) return dateB - dateA;
+        // Tie-breaker: created_at (Newest first)
+        const createdA = a.created_at ? new Date(a.created_at).getTime() : 0;
+        const createdB = b.created_at ? new Date(b.created_at).getTime() : 0;
+        return createdB - createdA;
+    }).slice(currentPage * ITEMS_PER_PAGE, (currentPage + 1) * ITEMS_PER_PAGE);
     const totalPages = Math.ceil(filteredTransactions.length / ITEMS_PER_PAGE);
 
     // Mapeamento dos itens de navegação para reuso (Sidebar e Bottom Nav)
@@ -1621,10 +1636,15 @@ function MainApp() {
 }
 
 
-// --- LIMPEZA: MODAL SEM RECORRÓŠNCIA E SEM PARCELAMENTO COMPLEXO ---
+// --- LIMPEZA: MODAL SEM RECORRÊNCIA E SEM PARCELAMENTO COMPLEXO ---
 function TransactionFormModal({ editingTransaction, data, handleSaveTransaction, setTxModalOpen, setEditingTransaction, onDelete }: any) {
-    const today = new Date().toISOString().split('T')[0];
+    const today = new Date().toLocaleDateString('sv-SE');
     const [form, setForm] = useState<Partial<Transaction>>(editingTransaction || { type: 'expense', date: today, paymentMethod: 'pix', category: data.categoryConfig.expense['ESSENCIAL']?.[0] || 'Outros' });
+
+    // Auto-update created_at if new
+    if (!editingTransaction && !form.created_at) {
+        form.created_at = new Date().toISOString();
+    }
     const [amountStr, setAmountStr] = useState(editingTransaction?.amount?.toString() || '');
 
     const [errors, setErrors] = useState<{ date?: string, title?: string }>({});

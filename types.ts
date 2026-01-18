@@ -24,6 +24,7 @@ export interface Transaction {
   installmentTotal?: number;
   parentTransactionId?: string;
   user_id?: string;
+  created_at?: string;
 }
 
 export interface WeeklyConfig {
